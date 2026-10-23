@@ -1,14 +1,14 @@
-// Exercise Warp SQL browser-flow HTTP contracts using PQTest's HTTP mock.
+// Exercise Warp SQL browser-flow HTTP contracts against a loopback HTTP fixture.
 let
     Helpers = Hardcharger.TestHelpers(),
     Start = Helpers[StartLogin],
     Finish = Helpers[FinishLogin],
-    Path = "{""server"":""oauth.example.test"",""port"":443,""useEncryption"":true}",
+    Path = "{""server"":""127.0.0.1"",""port"":31338,""useEncryption"":false}",
     Flow = Start(Path, "test-state", []),
     Token = Finish(Flow[Context], Flow[CallbackUri], "test-state"),
     Checks = {
         Flow[LoginUri] = "https://idp.example.test/authorize?flow=test-flow",
-        Flow[CallbackUri] = "https://oauth.example.test:443/?powerbi_signin_complete=1",
+        Flow[CallbackUri] = "http://127.0.0.1:31338/?powerbi_signin_complete=1",
         Flow[Context][PollSecret] = "test-poll-secret",
         Token[access_token] = "test-access-token",
         Token[token_type] = "bearer"

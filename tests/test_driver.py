@@ -34,6 +34,11 @@ class NativeDriverTests(unittest.TestCase):
                             self.assertGreater(len(rows), 20)
                             self.assertEqual(dict(rows)['PosOf_found'], '6')
 
+    def test_oauth_http_contract(self):
+        requests = [json.loads(line) for line in Path('test-results/oauth-requests.jsonl').read_text().splitlines()]
+        self.assertTrue(any(r['path'] == '/warp/v1/auth/oauth/flows' and r['body'] == {'return_to':'/?powerbi_signin_complete=1'} for r in requests))
+        self.assertTrue(any(r['path'] == '/warp/v1/auth/oauth/flows/test-flow' and r['body'] == {'poll_secret':'test-poll-secret'} for r in requests))
+
     def test_bearer_token(self):
         body = json.dumps({'grant_type':'password', 'username':'hardcharger_user',
                            'password':os.environ['HARDCHARGER_ADMIN_PASSWORD']}).encode()

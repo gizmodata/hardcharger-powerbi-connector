@@ -89,7 +89,7 @@
             Name="ManagedCertificateThumbprint" Type="string" Value="$(var.CertThumbprint)" KeyPath="yes" />
         <RegistryKey Root="HKLM" Key="SOFTWARE\Policies\Microsoft\Power BI Desktop">
           <RegistryValue Name="TrustedCertificateThumbprints" Type="multiString"
-                         Value="$(var.CertThumbprint)" MultiStringAction="append" />
+                         Value="$(var.CertThumbprint)" Action="append" />
         </RegistryKey>
       </Component>
     </ComponentGroup>
@@ -98,15 +98,21 @@
     <ComponentGroup Id="ConnectorComponents">
       <Component Id="ConnectorPqxStore" Guid="74DB7944-2F2A-4238-B1FD-EE452CC3CB6D"
                  Directory="CustomConnectorsStoreDir">
+        <RegistryValue Root="HKCU" Key="Software\GizmoData\Hardcharger Power BI Connector"
+            Name="StoreConnector" Type="integer" Value="1" KeyPath="yes" />
+        <RemoveFolder Id="RemoveStoreConnectorFolder" On="uninstall" />
+        <RemoveFolder Id="RemoveStoreParentFolder" Directory="PowerBIStoreDir" On="uninstall" />
         <File Id="HardchargerPqxStore"
-              Source="!(bindpath.ConnectorDir)\Hardcharger.pqx"
-              KeyPath="yes" />
+              Source="!(bindpath.ConnectorDir)\Hardcharger.pqx" />
       </Component>
       <Component Id="ConnectorPqxDesktop" Guid="999DA53B-ACC8-4896-83B7-F1666735DC6E"
                  Directory="CustomConnectorsDesktopDir">
+        <RegistryValue Root="HKCU" Key="Software\GizmoData\Hardcharger Power BI Connector"
+            Name="DesktopConnector" Type="integer" Value="1" KeyPath="yes" />
+        <RemoveFolder Id="RemoveDesktopConnectorFolder" On="uninstall" />
+        <RemoveFolder Id="RemoveDesktopParentFolder" Directory="PowerBIDesktopDir" On="uninstall" />
         <File Id="HardchargerPqxDesktop"
-              Source="!(bindpath.ConnectorDir)\Hardcharger.pqx"
-              KeyPath="yes" />
+              Source="!(bindpath.ConnectorDir)\Hardcharger.pqx" />
       </Component>
     </ComponentGroup>
   </Fragment>

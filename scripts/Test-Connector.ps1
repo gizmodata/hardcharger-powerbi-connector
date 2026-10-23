@@ -5,6 +5,7 @@ $init = (Resolve-Path tests/fixtures.sql).Path
 $testHome = (Resolve-Path .deps/test-home).Path
 $env:HOME = $testHome
 $server = Start-Process $env:HARDCHARGER_SERVER -ArgumentList @('--host','127.0.0.1','--port','31337','--health-port','0','--database',':memory:','--admin-username','hardcharger_user','--print-queries','true','--init-sql-commands-file',"`"$init`"") -WorkingDirectory $testHome -PassThru -RedirectStandardOutput "$PWD/test-results/server.stdout.log" -RedirectStandardError "$PWD/test-results/server.stderr.log"
+$oauthServer = Start-Process python -ArgumentList 'tests/oauth_server.py' -PassThru -RedirectStandardOutput "$PWD/test-results/oauth.stdout.log" -RedirectStandardError "$PWD/test-results/oauth.stderr.log"
 try {
     $ready = $false
     for ($i=0; $i -lt 40; $i++) {
@@ -26,12 +27,12 @@ try {
     if ($code -ne 0) { throw "PQTest exited $code" }
     $results = @($output | ConvertFrom-Json)
     # The test hook is invoked outside Power BI's OAuth-handler context, so
-    # explicitly grant anonymous Web credentials to the synthetic mock host.
+    # explicitly grant anonymous Web credentials to the loopback OAuth fixture.
     $anonymous = @{AuthenticationKind='Anonymous'; AuthenticationProperties=@{}; PrivacySetting='None'; Permissions=@()} | ConvertTo-Json
-    $anonymous | & $env:PQTEST set-credential -e Hardcharger.Test.mez -dsk Web -dsp 'https://oauth.example.test'
-    if ($LASTEXITCODE -ne 0) { throw 'Mock HTTP credential setup failed' }
+    $anonymous | & $env:PQTEST set-credential -e Hardcharger.Test.mez -dsk Web -dsp 'http://127.0.0.1:31338'
+    if ($LASTEXITCODE -ne 0) { throw 'OAuth fixture credential setup failed' }
     foreach ($name in @('ConnectionOptions','OAuth')) {
-        $unit = & $env:PQTEST run-test -e Hardcharger.Test.mez -q "tests/$name.query.pq" -p -hm tests/oauth-http-mock.txt
+        $unit = & $env:PQTEST run-test -e Hardcharger.Test.mez -q "tests/$name.query.pq" -p
         $unitCode = $LASTEXITCODE
         $unit | Set-Content "test-results/$name.json"
         Write-Host ($unit -join "`n")
@@ -43,7 +44,7 @@ try {
     $failed = @($results | Where-Object Status -ne 'Passed')
     $failureCount = $failed.Count
     # DirectQuery requires folding, not merely a correct client-side result.
-    foreach ($query in @('Aggregation','ColumnSelection','Filtering','Sorting','TopN','Join','TextFolding')) {
+    foreach ($query in @('Aggregation','ColumnSelection','Filtering','Sorting','TopN','DirectQueryJoin','TextFolding')) {
         $foldOutput = & $env:PQTEST run-test -e Hardcharger.mez -q "tests/$query.query.pq" -p --failOnFoldingFailure
         $foldCode = $LASTEXITCODE
         $foldOutput | Set-Content "test-results/folding-$query.json"
@@ -61,4 +62,5 @@ try {
     Write-Host "All $expected Power Query tests and native driver tests passed."
 } finally {
     if (!$server.HasExited) { Stop-Process -Id $server.Id -Force }
+    if (!$oauthServer.HasExited) { Stop-Process -Id $oauthServer.Id -Force }
 }
