@@ -1,18 +1,14 @@
-# Docker Compose for local integration testing.
-#
-# Usage:
-#   docker compose up -d
-#   # ... run isql or other ODBC tests against localhost:31337 ...
-#   docker compose down
-
+# Local development fixture: docker compose up -d; docker compose down
 services:
   hardcharger:
-    image: gizmodata/hardcharger:latest
+    image: ghcr.io/gizmodata/hardcharger:2.0.0
     ports:
       - "31337:31337"
     environment:
-      HARDCHARGER_USERNAME: hardcharger_user
-      HARDCHARGER_PASSWORD: hardcharger_password
-      DATABASE_FILENAME: /tmp/test.duckdb
-      TLS_ENABLED: "0"
-      PRINT_QUERIES: "1"
+      HARDCHARGER_ADMIN_USERNAME: hardcharger_user
+      HARDCHARGER_ADMIN_PASSWORD: hardcharger_password
+      HARDCHARGER_DATABASE: ':memory:'
+      HARDCHARGER_PRINT_QUERIES: 'true'
+    command: ['--init-sql-commands-file', '/fixtures.sql']
+    volumes:
+      - ./tests/fixtures.sql:/fixtures.sql:ro

@@ -64,7 +64,7 @@ On Windows with PowerShell 7, .NET 10, Python 3.14 and GitHub CLI:
 ./scripts/Install-Dependencies.ps1 Driver
 ./scripts/Install-Dependencies.ps1 Server
 # Set HARDCHARGER_SERVER to the extracted hardcharger-server.exe.
-python -m pip install adbc-driver-manager==1.12.0 pyarrow==23.0.1
+python -m pip install adbc-driver-manager==1.12.0 pyarrow==26.0.0
 ./scripts/Test-Connector.ps1
 ```
 

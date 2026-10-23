@@ -38,7 +38,7 @@ SqlView.Generator =
 
 Driver = Extension.LoadExpression("HardchargerAdbcConfig.pqm");
 
-// "Get Data" dialog parameters — kept to match the v1.x ODBC connector
+// High-level Get Data dialog parameters. Credentials use the standard auth UI.
 Hardcharger.ContentsType = type function (
     server as (type text meta [
         Documentation.FieldCaption = "Server",
@@ -284,15 +284,9 @@ FoldNavigationStep = (selector, loader, kind, optional immediate) =>
 
         dataResult = loader(name),
         emptyResult = #table(type table [Name = text, Description = nullable text, Data = table, Kind = text], {}),
-        // A missing table surfaces as an error from the metadata queries; map
-        // it to an empty navigation table instead of failing the fold.
-        // TODO: "(42S02)" is an ODBC SQLSTATE inherited from quack-net — adjust
-        // once the ADBC driver's missing-table error shape is known. A
-        // non-matching error just re-raises here, and ThrowFoldingFailures =
-        // false makes the engine fall back to the unfolded path.
-        resultOrEmpty = if immediate = true
-            then try dataResult catch (e) => if Text.Contains(e[Message] ?? "", "(42S02)") then null else error e
-            else dataResult
+        // If the navigation predicate cannot fold, Table.View falls back to
+        // normal metadata enumeration; preserve the original ADBC error.
+        resultOrEmpty = dataResult
     in
         if resultOrEmpty = null
             then emptyResult

@@ -40,7 +40,7 @@ jobs:
         run: |
           ./scripts/Install-Dependencies.ps1 Driver
           ./scripts/Install-Dependencies.ps1 Server
-          python -m pip install adbc-driver-manager==1.12.0 pyarrow==23.0.1
+          python -m pip install adbc-driver-manager==1.12.0 pyarrow==26.0.0
           if ($LASTEXITCODE -ne 0) { throw 'Python test dependency installation failed' }
       - name: Run all Power Query and native ADBC tests
         run: ./scripts/Test-Connector.ps1
