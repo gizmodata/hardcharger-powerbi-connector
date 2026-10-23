@@ -37,6 +37,7 @@ jobs:
           dotnet list installer/sign-pqx package --vulnerable --include-transitive
           if ($LASTEXITCODE -ne 0) { throw 'Dependency audit failed' }
       - name: Install released Hardcharger native driver and server
+        id: dependencies
         run: |
           ./scripts/Install-Dependencies.ps1 Driver
           ./scripts/Install-Dependencies.ps1 Server
@@ -45,6 +46,7 @@ jobs:
       - name: Run all Power Query and native ADBC tests
         run: ./scripts/Test-Connector.ps1
       - name: Build and test development MSI (unsigned, not published)
+        if: ${{ !cancelled() && steps.dependencies.outcome == 'success' }}
         env:
           CERT_THUMBPRINT: '0000000000000000000000000000000000000000'
         run: |

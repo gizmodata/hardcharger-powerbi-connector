@@ -25,6 +25,10 @@ try {
     Write-Host ($output -join "`n")
     if ($code -ne 0) { throw "PQTest exited $code" }
     $results = @($output | ConvertFrom-Json)
+    # The test hook is invoked outside Power BI's OAuth-handler context, so
+    # explicitly grant anonymous Web credentials to the synthetic mock host.
+    & $env:PQTEST set-credential -e Hardcharger.Test.mez -dsk Web -dsp 'https://oauth.example.test' -ak Anonymous
+    if ($LASTEXITCODE -ne 0) { throw 'Mock HTTP credential setup failed' }
     foreach ($name in @('ConnectionOptions','OAuth')) {
         $unit = & $env:PQTEST run-test -e Hardcharger.Test.mez -q "tests/$name.query.pq" -p -hm tests/oauth-http-mock.txt
         $unitCode = $LASTEXITCODE
@@ -36,7 +40,7 @@ try {
     $expected = @(Get-ChildItem tests/*.query.pq).Count
     if ($results.Count -ne $expected -or $expected -lt 9) { throw "Expected $expected tests; got $($results.Count)" }
     $failed = @($results | Where-Object Status -ne 'Passed')
-    if ($failed.Count -gt 0) { throw "$($failed.Count) Power Query tests failed" }
+    $failureCount = $failed.Count
     # DirectQuery requires folding, not merely a correct client-side result.
     foreach ($query in @('Aggregation','ColumnSelection','Filtering','Sorting','TopN','Join','TextFolding')) {
         $foldOutput = & $env:PQTEST run-test -e Hardcharger.mez -q "tests/$query.query.pq" -p --failOnFoldingFailure
@@ -45,12 +49,14 @@ try {
         $foldResults = @($foldOutput | ConvertFrom-Json)
         if ($foldCode -ne 0 -or $foldResults.Count -ne 1 -or $foldResults[0].Status -ne 'Passed') {
             Write-Host ($foldOutput -join "`n")
-            throw "DirectQuery folding failed: $query"
+            Write-Host "DirectQuery folding failed: $query"
+            $failureCount++
         }
     }
     # Separate end-to-end checks use the same released native ADBC DLL.
     python tests/test_driver.py
-    if ($LASTEXITCODE -ne 0) { throw 'Native driver tests failed' }
+    if ($LASTEXITCODE -ne 0) { $failureCount++ }
+    if ($failureCount -gt 0) { throw "$failureCount Power Query/folding/native test groups failed" }
     Write-Host "All $expected Power Query tests and native driver tests passed."
 } finally {
     if (!$server.HasExited) { Stop-Process -Id $server.Id -Force }

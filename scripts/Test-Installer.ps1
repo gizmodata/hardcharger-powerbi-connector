@@ -4,8 +4,8 @@ $sentinel = '0123456789ABCDEF0123456789ABCDEF01234567'
 New-Item $policy -Force | Out-Null
 New-ItemProperty $policy -Name TrustedCertificateThumbprints -PropertyType MultiString -Value @($sentinel) -Force | Out-Null
 $msi = (Resolve-Path Hardcharger-PowerBI-Setup-x64.msi).Path
-function Run-Msi($Args) {
-    $proc = Start-Process msiexec.exe -ArgumentList $Args -Wait -PassThru
+function Run-Msi($MsiArguments) {
+    $proc = Start-Process msiexec.exe -ArgumentList $MsiArguments -Wait -PassThru
     if ($proc.ExitCode -notin @(0,3010)) { throw "msiexec failed with $($proc.ExitCode)" }
 }
 Run-Msi "/i `"$msi`" /qn /norestart /l*v `"$PWD/install.log`""
