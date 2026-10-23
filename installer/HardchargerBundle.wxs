@@ -10,6 +10,17 @@
     <Icon Id="hardcharger.ico" SourceFile="hardcharger.ico" />
     <Property Id="ARPPRODUCTICON" Value="hardcharger.ico" />
 
+    <Property Id="EXISTINGTRUSTEDCERTIFICATES">
+      <RegistrySearch Id="FindTrustedCertificates" Root="HKLM"
+          Key="SOFTWARE\Policies\Microsoft\Power BI Desktop"
+          Name="TrustedCertificateThumbprints" Type="raw" Bitness="always64" />
+    </Property>
+    <Property Id="OWNEDTRUSTEDCERTIFICATE">
+      <RegistrySearch Id="FindOwnedCertificate" Root="HKLM"
+          Key="SOFTWARE\GizmoData\Hardcharger Power BI Connector"
+          Name="ManagedCertificateThumbprint" Type="raw" Bitness="always64" />
+    </Property>
+
     <MajorUpgrade AllowSameVersionUpgrades="yes"
                   DowngradeErrorMessage="A newer version of Hardcharger Power BI Connector is already installed." />
 
@@ -39,8 +50,8 @@
         </Directory>
       </Directory>
     </StandardDirectory>
-    <!-- Both paths needed: Store version uses "Power BI Desktop",
-         standalone installer uses "Microsoft Power BI Desktop" -->
+    <!-- Support both conventional custom connector Documents paths. Native
+         driver installation requires the standalone Desktop host. -->
     <StandardDirectory Id="PersonalFolder">
       <Directory Id="PowerBIStoreDir" Name="Power BI Desktop">
         <Directory Id="CustomConnectorsStoreDir" Name="Custom Connectors" />
@@ -70,7 +81,12 @@
          at the default "Recommended" security level without user intervention.
          See: https://learn.microsoft.com/en-us/power-bi/connect-data/desktop-trusted-third-party-connectors -->
     <ComponentGroup Id="PowerBITrustComponents" Directory="INSTALLFOLDER">
-      <Component Id="PowerBITrustedThumbprint" Guid="E3591AE7-BF08-421F-9664-B9261AA325EE">
+      <Component Id="PowerBITrustedThumbprint" Guid="E3591AE7-BF08-421F-9664-B9261AA325EE"
+          Condition='Installed OR OWNEDTRUSTEDCERTIFICATE = "$(var.CertThumbprint)" OR NOT (EXISTINGTRUSTEDCERTIFICATES ~&gt;&lt; "$(var.CertThumbprint)")'>
+        <!-- Never take ownership of trust already installed by GizmoSQL or an
+             administrator. The marker retains ownership through upgrades. -->
+        <RegistryValue Root="HKLM" Key="SOFTWARE\GizmoData\Hardcharger Power BI Connector"
+            Name="ManagedCertificateThumbprint" Type="string" Value="$(var.CertThumbprint)" KeyPath="yes" />
         <RegistryKey Root="HKLM" Key="SOFTWARE\Policies\Microsoft\Power BI Desktop">
           <RegistryValue Name="TrustedCertificateThumbprints" Type="multiString"
                          Value="$(var.CertThumbprint)" MultiStringAction="append" />
@@ -78,7 +94,7 @@
       </Component>
     </ComponentGroup>
 
-    <!-- Power BI connector — install to both Store and standalone paths -->
+    <!-- Power BI connector — install to both Documents naming conventions -->
     <ComponentGroup Id="ConnectorComponents">
       <Component Id="ConnectorPqxStore" Guid="74DB7944-2F2A-4238-B1FD-EE452CC3CB6D"
                  Directory="CustomConnectorsStoreDir">

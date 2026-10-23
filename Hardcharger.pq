@@ -423,7 +423,6 @@ OAuthPost = (url as text, body as record) =>
     Json.Document(Web.Contents(url, [
         Content = Json.FromValue(body),
         Headers = [#"Content-Type" = "application/json"],
-        ManualCredentials = true,
         IsRetry = true
     ]));
 

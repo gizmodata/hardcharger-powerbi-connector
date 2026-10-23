@@ -29,4 +29,11 @@ if ($sentinel -notin (Get-ItemProperty $policy).TrustedCertificateThumbprints) {
 foreach ($name in @('Power BI Desktop','Microsoft Power BI Desktop')) {
     if (Test-Path "$documents\$name\Custom Connectors\Hardcharger.pqx") { throw 'Connector remains after uninstall' }
 }
-Write-Host 'Install, repair, trust policy preservation and uninstall passed.'
+# A signer trusted before installation belongs to another product or an admin.
+# Uninstalling Hardcharger must leave that pre-existing trust in place.
+New-ItemProperty $policy -Name TrustedCertificateThumbprints -PropertyType MultiString -Value @($sentinel,$env:CERT_THUMBPRINT) -Force | Out-Null
+Run-Msi "/i `"$msi`" /qn /norestart"
+Run-Msi "/x `"$msi`" /qn /norestart"
+$remaining = (Get-ItemProperty $policy).TrustedCertificateThumbprints
+if ($sentinel -notin $remaining -or $env:CERT_THUMBPRINT -notin $remaining) { throw 'Uninstall removed a pre-existing trusted certificate' }
+Write-Host 'Install, repair, uninstall and preservation of unrelated/pre-existing signer trust passed.'
