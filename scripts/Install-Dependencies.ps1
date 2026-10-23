@@ -32,6 +32,11 @@ switch ($Component) {
             if (!$file) { throw "$name missing in driver release" }
             Copy-Item $file.FullName installer/bin/
         }
+        if ($env:PQTEST) {
+            $sdkDrivers = Join-Path (Split-Path $env:PQTEST) 'Mashup/ADBC Drivers/Hardcharger'
+            New-Item -ItemType Directory -Force $sdkDrivers | Out-Null
+            Copy-Item installer/bin/libadbc_driver_hardcharger.dll $sdkDrivers/
+        }
         $driverDir = (Resolve-Path installer/bin).Path
         if ($env:GITHUB_PATH) { $driverDir >> $env:GITHUB_PATH }
         $env:PATH = "$driverDir;$env:PATH"

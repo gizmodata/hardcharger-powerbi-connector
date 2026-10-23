@@ -30,3 +30,5 @@ installer/license.rtf
 *.msi
 *.wixpdb
 __pycache__/
+
+tests/TestHelpers.pqm

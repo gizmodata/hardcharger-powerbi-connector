@@ -15,5 +15,5 @@
 - Follow Microsoft's documented `Adbc.Connection` / `SqlView.Generator` ADBC architecture and explicit driver metadata/type information.
 - Pin Power Query SDK Tools 2.160.2, WiX 7.0.0, AzureSignTool 7.0.1, .NET 10 and current stable Azure signing SDKs. Verify downloaded SDK, server and native-driver SHA256 digests.
 - Include TLS choice in the credential scope and reject invalid hosts/ports. Query folding identity excludes credentials and distinguishes TLS trust settings and catalogs.
-- Give the MSI permanent Hardcharger-specific upgrade/component identities, preserving side-by-side GizmoSQL installations. Append connector trust without replacing unrelated certificate entries.
+- Give the MSI permanent Hardcharger-specific upgrade/component identities, preserving side-by-side GizmoSQL installations. Append connector trust without replacing unrelated certificate entries. Install the native driver in the Power Query host’s ADBC Drivers directory; the current engine does not use PATH for discovery.
 - Retain upstream SQL dialect smoke coverage; replace the historical ODBC SQLTables diagnostic with native ADBC catalog tests.

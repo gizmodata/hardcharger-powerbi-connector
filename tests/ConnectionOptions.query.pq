@@ -1,8 +1,9 @@
 // Validate endpoint and credential-scope helpers without network activity.
 let
-    BuildUri = #sections[Hardcharger][BuildUri],
-    OAuthBase = #sections[Hardcharger][OAuthBaseUrl],
-    MapCredential = #sections[Hardcharger][MapCredentialProperties],
+    Helpers = Hardcharger.TestHelpers(),
+    BuildUri = Helpers[BuildUri],
+    OAuthBase = Helpers[OAuthBaseUrl],
+    MapCredential = Helpers[MapCredentialProperties],
     Checks = {
         MapCredential([AuthenticationKind="Key", Key="test-token"])[#"adbc.warp.auth.access_token"] = "test-token",
         MapCredential([AuthenticationKind="OAuth", access_token="test-oauth"])[#"adbc.warp.auth.access_token"] = "test-oauth",

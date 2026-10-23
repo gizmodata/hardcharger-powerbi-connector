@@ -19,15 +19,17 @@ Connect Power BI Desktop to **Hardcharger™** using the native [Hardcharger ADB
 2. Run the signed installer, then restart Power BI Desktop.
 3. Choose **Get Data → Database → Hardcharger**.
 
-The MSI installs `libadbc_driver_hardcharger.dll` and its licenses under `Program Files\Hardcharger Power BI Connector`, adds that directory to the system PATH, and installs the signed `Hardcharger.pqx` into both Power BI Custom Connectors directories under the installing user's Documents. It appends the signing certificate to Power BI's trusted connector policy so the default Recommended security level can load the connector. Install interactively as the intended Power BI user with administrator elevation; SYSTEM deployments and other Windows users need the connector copied to their own Documents directories. GizmoSQL can remain installed alongside it.
+For a nondefault Desktop or gateway location, set MSI `INSTALLFOLDER` to that host's `ADBC Drivers\Hardcharger` directory. Repair the connector installation after a host update if its driver directory was replaced.
 
-Requires Windows x64, Hardcharger 2.0.0+ and a current Power BI Desktop with `Adbc.Connection` and `SqlView.Generator`. CI uses Power Query SDK Tools **2.160.2**. Power BI Desktop supplies the M engine separately; the installer does not update Desktop. This is a signed custom connector, not a Microsoft-certified built-in connector.
+The MSI installs `libadbc_driver_hardcharger.dll` and its licenses under `Program Files\Microsoft Power BI Desktop\bin\ADBC Drivers\Hardcharger`, and installs the signed `Hardcharger.pqx` into both Power BI Custom Connectors directories under the installing user's Documents. It appends the signing certificate to Power BI's trusted connector policy so the default Recommended security level can load the connector. Install interactively as the intended Power BI user with administrator elevation; SYSTEM deployments and other Windows users need the connector copied to their own Documents directories. GizmoSQL can remain installed alongside it.
+
+Requires the **standalone Windows x64 Power BI Desktop installer** (the Microsoft Store package has a read-only application directory), Hardcharger 2.0.0+ and a current Power BI Desktop with `Adbc.Connection` and `SqlView.Generator`. CI uses Power Query SDK Tools **2.160.2**. Power BI Desktop supplies the M engine separately; the installer does not update Desktop. This is a signed custom connector, not a Microsoft-certified built-in connector.
 
 ## Connect
 
 Enter the hostname, port (normally **31337**) and TLS choice. TLS should be enabled for production; disable it for a local plain HTTP development server. Optional settings allow certificate-verification bypass for development and a default catalog. Use a hostname rather than a URI; raw driver option names and credentials do not belong in query parameters.
 
-Choose **Username/Password**, **Bearer token**, or **OAuth (Browser)**. The bearer token must be a Warp SQL access token issued by Hardcharger, rather than an identity provider's raw ID token. Browser sign-in uses Hardcharger's Warp SQL OAuth flow on the same HTTP(S) port; configure the identity provider on the server. Its certificate must be trusted by Windows because Power Query's HTTP client cannot bypass TLS verification. Browser tokens cannot be refreshed noninteractively; use username/password for unattended gateway refresh. Gateway administrators must install the driver and connector on the gateway machine and enable custom connectors.
+Choose **Username/Password**, **Bearer token**, or **OAuth (Browser)**. The bearer token must be a Warp SQL access token issued by Hardcharger, rather than an identity provider's raw ID token. Browser sign-in uses Hardcharger's Warp SQL OAuth flow on the same HTTP(S) port; configure the identity provider on the server. Its certificate must be trusted by Windows because Power Query's HTTP client cannot bypass TLS verification. Browser tokens cannot be refreshed noninteractively; use username/password for unattended gateway refresh. Gateway administrators must install the DLL under the gateway mashup host's `ADBC Drivers\Hardcharger` directory, place the connector in the configured custom connector folder, and enable custom connectors. Gateway refresh needs separate acceptance testing.
 
 ```powerquery
 // TLS enabled
@@ -70,7 +72,7 @@ python -m pip install adbc-driver-manager==1.12.0 pyarrow==26.0.0
 
 CI runs the full inherited nine-query GizmoSQL suite and additional correctness/regression queries against a real released Hardcharger server and native ADBC DLL. It fails on missing/zero results and any failed query, and saves JSON and server logs as artifacts. Native-driver tests cover catalog discovery, the inherited DuckDB SQL dialect script, bearer auth, rejected credentials and TLS downgrade prevention. The retained `tests/legacy-odbc-sqltables.c` is an archived ODBC-era diagnostic, superseded by the ADBC catalog tests.
 
-For a development build, copy `Hardcharger.mez` to `[Documents]\Power BI Desktop\Custom Connectors` and allow unsigned connectors in Desktop's security options. The native driver must be on PATH. For signed manual installation, copy `Hardcharger.pqx` and have an administrator configure the [trusted certificate policy](https://learn.microsoft.com/en-us/power-bi/connect-data/desktop-trusted-third-party-connectors); the MSI performs these steps.
+For a development build, copy `Hardcharger.mez` to `[Documents]\Power BI Desktop\Custom Connectors` and allow unsigned connectors in Desktop's security options. The native DLL must be in the host's `ADBC Drivers\Hardcharger` directory. PATH is not used by the current Power Query unmanaged driver loader. For signed manual installation, copy `Hardcharger.pqx` and have an administrator configure the [trusted certificate policy](https://learn.microsoft.com/en-us/power-bi/connect-data/desktop-trusted-third-party-connectors); the MSI performs these steps.
 
 Set `EnableTraceOutput = true` in `Hardcharger.pq` for local diagnostics. Leave it disabled in release builds. Desktop Import/DirectQuery visuals, credential dialogs, interactive IdP sign-in and model relationships also need Desktop acceptance testing; headless PQTest validates M evaluation and folding queries, not the full Desktop UI.
 
@@ -82,6 +84,6 @@ The `production` GitHub environment contains `AZURE_CLIENT_ID`, `AZURE_TENANT_ID
 
 ## License and attribution
 
-Apache-2.0. Derived from [GizmoSQL Power BI Connector](https://github.com/gizmodata/gizmosql-powerbi-connector), preserving its Git history and nine regression queries. SQL generator: Curt Hagenlocher's quack-net (Apache-2.0), with text predicate contributions from spiceai/powerbi-connector (MIT). Native driver licenses and third-party notices ship in the MSI.
+Apache-2.0. Derived from [GizmoSQL Power BI Connector](https://github.com/gizmodata/gizmosql-powerbi-connector), preserving its Git history and nine regression queries. SQL generator: Curt Hagenlocher's quack-net (Apache-2.0), with text predicate contributions from spiceai/powerbi-connector (MIT). Connector and native driver licenses and third-party notices ship in the MSI.
 
 <p align="center"><a href="https://gizmodata.com"><img src="docs/assets/gizmodata-logo.png" alt="GizmoData™" width="56"></a><br><sub>Built by GizmoData™. Hardcharger™ and GizmoData™ are trademarks of GizmoData LLC.</sub></p>

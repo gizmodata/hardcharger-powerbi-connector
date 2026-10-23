@@ -31,7 +31,13 @@
 
   <Fragment>
     <StandardDirectory Id="ProgramFiles64Folder">
-      <Directory Id="INSTALLFOLDER" Name="Hardcharger Power BI Connector" />
+      <Directory Id="PowerBIFolder" Name="Microsoft Power BI Desktop">
+        <Directory Id="PowerBIBinFolder" Name="bin">
+          <Directory Id="PowerBIAdbcFolder" Name="ADBC Drivers">
+            <Directory Id="INSTALLFOLDER" Name="Hardcharger" />
+          </Directory>
+        </Directory>
+      </Directory>
     </StandardDirectory>
     <!-- Both paths needed: Store version uses "Power BI Desktop",
          standalone installer uses "Microsoft Power BI Desktop" -->
@@ -45,23 +51,18 @@
     </StandardDirectory>
   </Fragment>
 
-  <!-- Hardcharger ADBC driver. The driver is a Go-built native DLL
-       (no VC++ runtime dependency). Adding the install dir to PATH so the
-       Power BI mashup container resolves "libadbc_driver_hardcharger.dll" by name. -->
+  <!-- Current Power Query resolves Folder/File below its own ADBC Drivers
+       directory. PATH is not consulted. INSTALLFOLDER can be overridden for a
+       nondefault standalone Desktop or gateway binary directory. -->
   <Fragment>
     <ComponentGroup Id="DriverComponents" Directory="INSTALLFOLDER">
       <Component Id="AdbcHardchargerDll" Guid="B0C0AB27-38C0-4E6C-9BB6-D7F4CFC45677">
+        <File Id="ConnectorThirdPartyNotices" Source="THIRD_PARTY_NOTICES.md" />
         <File Id="DriverThirdPartyNotices" Source="!(bindpath.BinDir)\THIRD_PARTY_NOTICES" />
         <File Id="DriverLicense" Source="!(bindpath.BinDir)\LICENSE" />
         <File Id="LibAdbcDriverHardchargerDll"
               Source="!(bindpath.BinDir)\libadbc_driver_hardcharger.dll"
               KeyPath="yes" />
-        <Environment Id="AdbcDriverPath"
-                     Name="PATH"
-                     Action="set"
-                     Part="last"
-                     System="yes"
-                     Value="[INSTALLFOLDER]" />
       </Component>
     </ComponentGroup>
 

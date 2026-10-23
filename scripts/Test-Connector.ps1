@@ -19,12 +19,20 @@ try {
     } | ConvertTo-Json
     $cred | & $env:PQTEST set-credential -e Hardcharger.mez -q tests/Navigation.query.pq
     if ($LASTEXITCODE -ne 0) { throw 'PQTest set-credential failed' }
-    $output = & $env:PQTEST run-test -e Hardcharger.mez -q tests -p -hm tests/oauth-http-mock.txt
+    $output = & $env:PQTEST run-test -e Hardcharger.mez -q tests -p --testFilter '!ConnectionOptions.query.pq' --testFilter '!OAuth.query.pq'
     $code = $LASTEXITCODE
     $output | Set-Content test-results/pqtest.json
     Write-Host ($output -join "`n")
     if ($code -ne 0) { throw "PQTest exited $code" }
     $results = @($output | ConvertFrom-Json)
+    foreach ($name in @('ConnectionOptions','OAuth')) {
+        $unit = & $env:PQTEST run-test -e Hardcharger.Test.mez -q "tests/$name.query.pq" -p -hm tests/oauth-http-mock.txt
+        $unitCode = $LASTEXITCODE
+        $unit | Set-Content "test-results/$name.json"
+        Write-Host ($unit -join "`n")
+        if ($unitCode -ne 0) { throw "$name PQTest exited $unitCode" }
+        $results += @($unit | ConvertFrom-Json)
+    }
     $expected = @(Get-ChildItem tests/*.query.pq).Count
     if ($results.Count -ne $expected -or $expected -lt 9) { throw "Expected $expected tests; got $($results.Count)" }
     $failed = @($results | Where-Object Status -ne 'Passed')

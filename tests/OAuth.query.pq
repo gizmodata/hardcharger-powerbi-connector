@@ -1,7 +1,8 @@
 // Exercise Warp SQL browser-flow HTTP contracts using PQTest's HTTP mock.
 let
-    Start = #sections[Hardcharger][StartLogin],
-    Finish = #sections[Hardcharger][FinishLogin],
+    Helpers = Hardcharger.TestHelpers(),
+    Start = Helpers[StartLogin],
+    Finish = Helpers[FinishLogin],
     Path = "{""server"":""oauth.example.test"",""port"":443,""useEncryption"":true}",
     Flow = Start(Path, "test-state", []),
     Token = Finish(Flow[Context], Flow[CallbackUri], "test-state"),

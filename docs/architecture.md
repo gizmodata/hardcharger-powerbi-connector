@@ -29,3 +29,11 @@ headless M tests.
 The checked-in dependency lock records the latest stable versions returned by
 NuGet on the review date. SDK versions and Desktop releases are separate: CI
 validates SDK 2.160.2. Desktop UI and model acceptance testing is still separate.
+
+Driver-discovery validation found that SDK 2.160.2 resolves unmanaged Folder/File
+under the directory containing Microsoft.Mashup.Adbc.dll, in ADBC Drivers. It
+rejects absolute paths and does not consult PATH or the ADBC manifest registry.
+The MSI therefore installs to standalone Desktop's bin/ADBC Drivers/Hardcharger
+by default, with INSTALLFOLDER override for other hosts. The SDK test setup uses
+its own Mashup/ADBC Drivers/Hardcharger directory. Store Desktop's read-only app
+package is not supported by this external native-driver installation.

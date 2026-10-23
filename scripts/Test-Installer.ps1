@@ -9,7 +9,7 @@ function Run-Msi($Args) {
     if ($proc.ExitCode -notin @(0,3010)) { throw "msiexec failed with $($proc.ExitCode)" }
 }
 Run-Msi "/i `"$msi`" /qn /norestart /l*v `"$PWD/install.log`""
-$folder = "$env:ProgramFiles\Hardcharger Power BI Connector"
+$folder = "$env:ProgramFiles\Microsoft Power BI Desktop\bin\ADBC Drivers\Hardcharger"
 $documents = [Environment]::GetFolderPath('MyDocuments')
 foreach ($name in @('libadbc_driver_hardcharger.dll','LICENSE','THIRD_PARTY_NOTICES')) {
     if (!(Test-Path "$folder\$name")) { throw "Installed driver file missing: $name" }
@@ -21,8 +21,6 @@ foreach ($name in @('Power BI Desktop','Microsoft Power BI Desktop')) {
 }
 $trusted = (Get-ItemProperty $policy).TrustedCertificateThumbprints
 if ($sentinel -notin $trusted -or $env:CERT_THUMBPRINT -notin $trusted) { throw 'Installer failed to append signer trust while preserving existing policy' }
-$machinePath = [Environment]::GetEnvironmentVariable('PATH','Machine')
-if ($machinePath -notlike "*$folder*") { throw 'Driver folder missing from system PATH' }
 # A repair must retain the exact same signed payload.
 Run-Msi "/fa `"$msi`" /qn /norestart /l*v `"$PWD/repair.log`""
 Run-Msi "/x `"$msi`" /qn /norestart /l*v `"$PWD/uninstall.log`""

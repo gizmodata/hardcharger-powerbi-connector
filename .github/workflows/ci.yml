@@ -44,6 +44,12 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Python test dependency installation failed' }
       - name: Run all Power Query and native ADBC tests
         run: ./scripts/Test-Connector.ps1
+      - name: Build and test development MSI (unsigned, not published)
+        env:
+          CERT_THUMBPRINT: '0000000000000000000000000000000000000000'
+        run: |
+          ./scripts/Build-Installer.ps1 -Version '1.0.0' -CertThumbprint $env:CERT_THUMBPRINT
+          ./scripts/Test-Installer.ps1
       - name: Upload test evidence
         if: always()
         uses: actions/upload-artifact@v7
@@ -102,20 +108,8 @@ jobs:
         env:
           CERT_THUMBPRINT: ${{ steps.pqx.outputs.thumbprint }}
         run: |
-          $deps = Get-Content dependencies.json -Raw | ConvertFrom-Json
-          dotnet tool install --global wix --version $deps.wix
-          if ($LASTEXITCODE -ne 0) { throw 'WiX installation failed' }
-          wix extension add "WixToolset.UI.wixext/$($deps.wix)"
-          if ($LASTEXITCODE -ne 0) { throw 'WiX UI extension installation failed' }
-          New-Item -ItemType Directory -Force installer/connector | Out-Null
-          Copy-Item Hardcharger.pqx installer/connector/
-          $license = Get-Content LICENSE -Raw
-          $escaped = $license.Replace('\','\\').Replace('{','\{').Replace('}','\}') -replace "`r?`n", '\par '
-          Set-Content installer/license.rtf ('{\rtf1\ansi\deff0 {\fonttbl {\f0 Consolas;}}\f0\fs18 ' + $escaped + '}')
           $version = $env:GITHUB_REF_NAME.TrimStart('v')
-          if ($version -notmatch '^\d+\.\d+\.\d+$') { throw 'Tag must be vX.Y.Z' }
-          wix build installer/HardchargerBundle.wxs -arch x64 -d ProductVersion=$version -d CertThumbprint=$env:CERT_THUMBPRINT -b BinDir=installer/bin -b ConnectorDir=installer/connector -b installer -o Hardcharger-PowerBI-Setup-x64.msi -ext WixToolset.UI.wixext
-          if ($LASTEXITCODE -ne 0) { throw 'MSI build failed' }
+          ./scripts/Build-Installer.ps1 -Version $version -CertThumbprint $env:CERT_THUMBPRINT
       - name: Sign and verify MSI
         env:
           VAULT_URI: ${{ secrets.AZURE_KEY_VAULT_URI }}
