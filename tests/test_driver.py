@@ -58,7 +58,7 @@ class NativeDriverTests(unittest.TestCase):
         with self.assertRaises(Exception):
             dbapi.connect(driver=DRIVER, entrypoint='AdbcDriverHardchargerInit',
                           db_kwargs={'uri':'hardcharger://localhost:31337',
-                                     'username':'hardcharger_user', 'password':'never-sent'})
+                                     'username':'hardcharger_user', 'password':os.environ['HARDCHARGER_ADMIN_PASSWORD']})
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)
