@@ -16,6 +16,6 @@
     "asset": "hardcharger-windows-amd64.zip",
     "sha256": "10b1efc27275b932203b7191ae14d741eef9dec608ff7a60739318eeb0340556"
   },
-  "wix": "7.0.0",
+  "wix": "5.0.2",
   "azureSignTool": "7.0.1"
 }

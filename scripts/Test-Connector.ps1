@@ -27,7 +27,8 @@ try {
     $results = @($output | ConvertFrom-Json)
     # The test hook is invoked outside Power BI's OAuth-handler context, so
     # explicitly grant anonymous Web credentials to the synthetic mock host.
-    & $env:PQTEST set-credential -e Hardcharger.Test.mez -dsk Web -dsp 'https://oauth.example.test' -ak Anonymous
+    $anonymous = @{AuthenticationKind='Anonymous'; AuthenticationProperties=@{}; PrivacySetting='None'; Permissions=@()} | ConvertTo-Json
+    $anonymous | & $env:PQTEST set-credential -e Hardcharger.Test.mez -dsk Web -dsp 'https://oauth.example.test'
     if ($LASTEXITCODE -ne 0) { throw 'Mock HTTP credential setup failed' }
     foreach ($name in @('ConnectionOptions','OAuth')) {
         $unit = & $env:PQTEST run-test -e Hardcharger.Test.mez -q "tests/$name.query.pq" -p -hm tests/oauth-http-mock.txt

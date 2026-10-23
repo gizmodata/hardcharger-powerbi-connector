@@ -1,3 +1,5 @@
+> Historical GizmoSQL investigation, preserved for provenance. The Hardcharger connector uses the now-documented Adbc.Connection / SqlView.Generator pattern; see ../architecture.md.
+
 # `Adbc.DataSource`: DirectQuery cross-table fold fails with "different data sources" despite `Value.Equals` returning `true` for identical Source bindings
 
 > **Status (2026-06-11):** addressed on this branch by reworking the connector onto the newer experimental `Adbc.Connection` + `SqlView.Generator` APIs, whose unique-identifier argument carries the data-source identity explicitly (per @mattmasson's guidance on the upstream issue). This document is kept as the record of the `Adbc.DataSource` behavior, which remains unfixed upstream.
@@ -30,7 +32,7 @@ Standalone, sub-second, deterministic. Uses Microsoft's own PQTest framework. No
 
 ### 1. Test connector
 
-A minimal connector wrapping `Adbc.DataSource` with the Apache Arrow FlightSQL Go driver against any FlightSQL-speaking server (we used Hardcharger — DuckDB-backed Apache Arrow Flight SQL server — but Spice.ai, Dremio, or any FlightSQL endpoint reproduces the same outcome). Connector source: `https://github.com/gizmodata/hardcharger-powerbi-connector/tree/adbc-flight-sql`.
+A minimal connector wrapping `Adbc.DataSource` with the Apache Arrow FlightSQL Go driver against any FlightSQL-speaking server (we used GizmoSQL — DuckDB-backed Apache Arrow Flight SQL server — but Spice.ai, Dremio, or any FlightSQL endpoint reproduces the same outcome). Connector source: `https://github.com/gizmodata/gizmosql-powerbi-connector/tree/adbc-flight-sql`.
 
 ### 2. PQTest setup
 
@@ -48,7 +50,7 @@ $pqtest = (Get-ChildItem sdktools -Filter "PQTest.exe" -Recurse | Select -First 
   "PrivacySetting": "None",
   "Permissions": []
 }
-'@ | & $pqtest set-credential -e Hardcharger.mez -q probe.pq
+'@ | & $pqtest set-credential -e GizmoSQL.mez -q probe.pq
 ```
 
 ### 3. Test queries
@@ -57,8 +59,8 @@ $pqtest = (Get-ChildItem sdktools -Filter "PQTest.exe" -Recurse | Select -First 
 
 ```m
 let
-    SourceA = Hardcharger.Contents("localhost", 31337, false),
-    SourceB = Hardcharger.Contents("localhost", 31337, false),
+    SourceA = GizmoSQL.Contents("localhost", 31337, false),
+    SourceB = GizmoSQL.Contents("localhost", 31337, false),
     equal = Value.Equals(SourceA, SourceB)
 in
     [ Value_Equals = equal ]
@@ -69,7 +71,7 @@ in
 
 ```m
 let
-    Source = Hardcharger.Contents("localhost", 31337, false),
+    Source = GizmoSQL.Contents("localhost", 31337, false),
     lineitem_Table = Source{[Name="memory",Kind="Database"]}[Data]{[Name="main",Kind="Schema"]}[Data]{[Name="lineitem",Kind="Table"]}[Data],
     orders_Table   = Source{[Name="memory",Kind="Database"]}[Data]{[Name="main",Kind="Schema"]}[Data]{[Name="orders",  Kind="Table"]}[Data],
     joined = Table.Join(lineitem_Table, {"l_orderkey"}, orders_Table, {"o_orderkey"}, JoinKind.LeftOuter, null),
@@ -83,10 +85,10 @@ in
 
 ```m
 let
-    SourceA = Hardcharger.Contents("localhost", 31337, false),
+    SourceA = GizmoSQL.Contents("localhost", 31337, false),
     lineitem_Table = SourceA{[Name="memory",Kind="Database"]}[Data]{[Name="main",Kind="Schema"]}[Data]{[Name="lineitem",Kind="Table"]}[Data],
 
-    SourceB = Hardcharger.Contents("localhost", 31337, false),
+    SourceB = GizmoSQL.Contents("localhost", 31337, false),
     orders_Table = SourceB{[Name="memory",Kind="Database"]}[Data]{[Name="main",Kind="Schema"]}[Data]{[Name="orders",Kind="Table"]}[Data],
 
     joined = Table.Join(lineitem_Table, {"l_orderkey"}, orders_Table, {"o_orderkey"}, JoinKind.LeftOuter, null),
@@ -99,13 +101,13 @@ in
 ### 4. Run
 
 ```powershell
-& $pqtest run-test -e Hardcharger.mez -q Equality.query.pq -p
+& $pqtest run-test -e GizmoSQL.mez -q Equality.query.pq -p
 # {"Value_Equals":true}                                    ← M says equal
 
-& $pqtest run-test -e Hardcharger.mez -q Join_OneSource.query.pq -foff -p
+& $pqtest run-test -e GizmoSQL.mez -q Join_OneSource.query.pq -foff -p
 # Status: Passed, RowCount: 5                              ← strict-fold mode works
 
-& $pqtest run-test -e Hardcharger.mez -q Join_TwoSources.query.pq -foff -p
+& $pqtest run-test -e GizmoSQL.mez -q Join_TwoSources.query.pq -foff -p
 # Status: Failed
 # Error: "We couldn't fold the expression to the data source.
 #         Please try a simpler expression."
@@ -122,7 +124,7 @@ in
 Engine/IO/Adbc/Connection/Open    ResourcePath: {"server":"localhost","port":31337}
                                   DriverName: ADBC Flight SQL Driver - Go
                                   DriverVersion: (unknown or development build)
-                                  DBMSName: hardcharger
+                                  DBMSName: gizmosql
                                   DBMSVersion: duckdb v1.5.2
                                   Pooling: False
 [...repeated 5×, identical metadata each time, fresh connection each navigation step...]
@@ -143,7 +145,7 @@ Probing the same Apache Go FlightSQL driver DLL (`libadbc_driver_flightsql.dll` 
 ```
 === Byte-for-byte equality across 2 independent connections ===
 IDENTICAL across all 7 info codes.
-  VENDOR_NAME           = 'hardcharger'
+  VENDOR_NAME           = 'gizmosql'
   VENDOR_VERSION        = 'duckdb v1.5.2'
   VENDOR_ARROW_VERSION  = '23.0.1'
   DRIVER_NAME           = 'ADBC Flight SQL Driver - Go'
@@ -162,12 +164,12 @@ IDENTICAL across all 7 info codes.
 | `Adbc.connection.catalog`/`db_schema = true` confuses PBI | Set both to `false` (matches Spice's working-config recipe) | ❌ no change |
 | Missing `NativeQueryProperties.EnableFolding = true` | Added | ❌ no change |
 | Wrong `navigationSteps` shape | Replaced `{[]}` placeholder with full 3-level Catalog→Schema→Table descriptor | ❌ no change |
-| Inline lambda in `Value.ReplaceType` (vs named function) | Refactored to named `HardchargerConnectionImpl` (matches Spice's named `SpiceConnectionImpl`) | ❌ no change |
+| Inline lambda in `Value.ReplaceType` (vs named function) | Refactored to named `GizmoSqlConnectionImpl` (matches Spice's named `SpiceConnectionImpl`) | ❌ no change |
 | `Extension.CurrentCredential()` is non-deterministic | Hardcoded credentials in M | ❌ no change |
 | Result needs explicit `Value.ReplaceMetadata([DataSource.Kind=..., DataSource.Path=...])` | Added | ❌ no change |
 | Stale PBI Desktop caches | Cleared `Cache`, `ExtensionCache`, `FoldedArtifactsCache`, `LuciaCache`, fresh PBIX | ❌ no change |
 | Stale model state in saved PBIX | Tested with brand-new blank PBIX | ❌ no change |
-| Server-side metadata varies per connection | Inspected `hardcharger/duckdb_sql_info.cpp:200-206`: all `FLIGHT_SQL_SERVER_*` strings are compile-time constants | ❌ deterministic |
+| Server-side metadata varies per connection | Inspected `gizmosql/duckdb_sql_info.cpp:200-206`: all `FLIGHT_SQL_SERVER_*` strings are compile-time constants | ❌ deterministic |
 | Driver-side metadata varies per call | Reviewed `apache/arrow-adbc/go/adbc/driver/flightsql/flightsql_driver.go:69` + `driver_info.go`: all defaults are constants | ❌ deterministic |
 
 ## What we believe is wrong
@@ -183,7 +185,7 @@ Either way, the recipe Apache + Spice + this connector are following — which i
 
 ## Related public reports
 
-- **[spiceai/powerbi-connector#10](https://github.com/spiceai/powerbi-connector/issues/10)** — *"Adding Table Relationships causes 'We couldn't fold the expression to the data source.' error"*. Independent reproduction on a different ADBC backend (Spice.ai instead of Hardcharger). **Open, no maintainer response, no workaround.**
+- **[spiceai/powerbi-connector#10](https://github.com/spiceai/powerbi-connector/issues/10)** — *"Adding Table Relationships causes 'We couldn't fold the expression to the data source.' error"*. Independent reproduction on a different ADBC backend (Spice.ai instead of GizmoSQL). **Open, no maintainer response, no workaround.**
 - **[mariadb-corporation/mariadb-powerbi#12](https://github.com/mariadb-corporation/mariadb-powerbi/issues/12)** — Same fold-failure error on a different (non-ADBC) custom connector. Closed without resolution.
 - **[Microsoft Fabric: ADBC LEFT JOIN UnknownError](https://community.fabric.microsoft.com/t5/Power-Query/DataSource-Error-ADBC-UnknownError-while-running-a-query-with/m-p/4806424)** — different ADBC error path. Community consensus: *"the new ADBC implementation provides extremely poor messaging compared to previous versions."*
 - **[Microsoft Fabric: Table.Join + DirectQuery](https://community.fabric.microsoft.com/t5/Power-Query/Table-Join-does-it-works-with-DirectQuery-or-not/td-p/2082526)** — Microsoft Community Support confirms the design rule: *"tables must originate from the same SQL database for `Table.Join` to function properly in DirectQuery mode"*. The "different data sources" check is intentional; the bug is that it's mistakenly identifying same-source as different-source for `Adbc.DataSource`.
@@ -191,9 +193,9 @@ Either way, the recipe Apache + Spice + this connector are following — which i
 ## Environment
 
 - Power BI Desktop: 2.153.777.0 (26.04 / April 2026)
-- Connector: `gizmodata/hardcharger-powerbi-connector` `adbc-flight-sql` branch
+- Connector: `gizmodata/gizmosql-powerbi-connector` `adbc-flight-sql` branch
 - ADBC FlightSQL driver: `apache/arrow-adbc` release `apache-arrow-adbc-23` (driver version 1.11.0, Go-built)
-- Backend: Hardcharger `v1.24.0` (DuckDB `v1.5.2`)
+- Backend: GizmoSQL `v1.24.0` (DuckDB `v1.5.2`)
 - PQTest: `Microsoft.PowerQuery.SdkTools` (latest from NuGet)
 
 ## What would help

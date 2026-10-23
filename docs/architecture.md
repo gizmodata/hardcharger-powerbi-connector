@@ -26,8 +26,10 @@ to leaf tables. We preserve primary-key metadata, test it, and document Desktop'
 relationship detection separately. Do not claim model relationship import from
 headless M tests.
 
-The checked-in dependency lock records the latest stable versions returned by
-NuGet on the review date. SDK versions and Desktop releases are separate: CI
+The checked-in dependency lock pins Power Query SDK Tools and signing packages
+to the latest stable NuGet versions on the review date. MSI packaging uses WiX
+5.0.2, the last pre-OSMF version; WiX 7 requires acceptance of new maintenance-fee
+terms, which this project does not automatically accept. SDK versions and Desktop releases are separate: CI
 validates SDK 2.160.2. Desktop UI and model acceptance testing is still separate.
 
 Driver-discovery validation found that SDK 2.160.2 resolves unmanaged Folder/File

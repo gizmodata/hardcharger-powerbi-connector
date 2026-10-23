@@ -29,4 +29,6 @@ verified before packaging. The MSI checks the exact same signer thumbprint.
 UpgradeCode `D7F4B2AA-139E-49D1-8AA4-C575F690CFB7` and component GUIDs are permanent
 Hardcharger identities. Never reuse GizmoSQL installer GUIDs. Power BI's trusted
 certificate policy is appended to rather than replaced; the release job checks
-that an unrelated entry survives install, repair and removal.
+that unrelated entries and a pre-existing signer survive install, repair and
+removal. A product-specific ownership marker prevents uninstall from removing
+trust installed earlier by GizmoSQL or an administrator.
