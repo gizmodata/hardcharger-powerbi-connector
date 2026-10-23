@@ -2,6 +2,7 @@ param([string]$Version = '1.0.0', [Parameter(Mandatory)][string]$CertThumbprint)
 $ErrorActionPreference = 'Stop'
 if ($Version -notmatch '^\d+\.\d+\.\d+$') { throw 'Version must be X.Y.Z' }
 if ($CertThumbprint -notmatch '^[0-9A-Fa-f]{40}$') { throw 'Expected SHA1 certificate thumbprint' }
+./scripts/Build-TrustAction.ps1
 $deps = Get-Content "$PSScriptRoot/../dependencies.json" -Raw | ConvertFrom-Json
 dotnet tool install --global wix --version $deps.wix
 if ($LASTEXITCODE -ne 0) { throw 'WiX installation failed' }

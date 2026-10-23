@@ -32,3 +32,9 @@ certificate policy is appended to rather than replaced; the release job checks
 that unrelated entries and a pre-existing signer survive install, repair and
 removal. A product-specific ownership marker prevents uninstall from removing
 trust installed earlier by GizmoSQL or an administrator.
+
+The trust detector is a read-only native MSI immediate action. It reads the full
+64-bit REG_MULTI_SZ policy and sets a scalar MSI property before costing. A raw
+AppSearch value contains embedded NULs, so substring conditions on it cannot
+reliably detect a certificate beyond the first entry. Registry changes remain
+standard MSI components with rollback and a product-specific ownership marker.

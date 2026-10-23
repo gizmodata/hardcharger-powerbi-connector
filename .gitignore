@@ -32,3 +32,5 @@ installer/license.rtf
 __pycache__/
 
 tests/TestHelpers.pqm
+
+installer/trust-policy.dll

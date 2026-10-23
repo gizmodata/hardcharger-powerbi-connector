@@ -10,11 +10,17 @@
     <Icon Id="hardcharger.ico" SourceFile="hardcharger.ico" />
     <Property Id="ARPPRODUCTICON" Value="hardcharger.ico" />
 
-    <Property Id="EXISTINGTRUSTEDCERTIFICATES" Secure="yes">
-      <RegistrySearch Id="FindTrustedCertificates" Root="HKLM"
-          Key="SOFTWARE\Policies\Microsoft\Power BI Desktop"
-          Name="TrustedCertificateThumbprints" Type="raw" Bitness="always64" />
-    </Property>
+    <Property Id="HARDCHARGERSIGNER" Value="$(var.CertThumbprint)" Secure="yes" />
+    <Property Id="PREEXISTINGTRUSTEDCERTIFICATE" Secure="yes" />
+    <Binary Id="TrustPolicyActions" SourceFile="trust-policy.dll" />
+    <CustomAction Id="DetectExistingCertificate" BinaryRef="TrustPolicyActions"
+        DllEntry="DetectTrustedCertificate" Execute="immediate" Return="check" />
+    <InstallUISequence>
+      <Custom Action="DetectExistingCertificate" Before="CostFinalize" Condition="NOT REMOVE" />
+    </InstallUISequence>
+    <InstallExecuteSequence>
+      <Custom Action="DetectExistingCertificate" Before="CostFinalize" Condition="NOT REMOVE" />
+    </InstallExecuteSequence>
     <Property Id="OWNEDTRUSTEDCERTIFICATE" Secure="yes">
       <RegistrySearch Id="FindOwnedCertificate" Root="HKLM"
           Key="SOFTWARE\GizmoData\Hardcharger Power BI Connector"
@@ -82,7 +88,7 @@
          See: https://learn.microsoft.com/en-us/power-bi/connect-data/desktop-trusted-third-party-connectors -->
     <ComponentGroup Id="PowerBITrustComponents" Directory="INSTALLFOLDER">
       <Component Id="PowerBITrustedThumbprint" Guid="E3591AE7-BF08-421F-9664-B9261AA325EE"
-          Condition='OWNEDTRUSTEDCERTIFICATE = "$(var.CertThumbprint)" OR NOT (EXISTINGTRUSTEDCERTIFICATES ~&gt;&lt; "$(var.CertThumbprint)")'>
+          Condition='(OWNEDTRUSTEDCERTIFICATE AND OWNEDTRUSTEDCERTIFICATE = HARDCHARGERSIGNER) OR NOT PREEXISTINGTRUSTEDCERTIFICATE'>
         <!-- Never take ownership of trust already installed by GizmoSQL or an
              administrator. The marker retains ownership through upgrades. -->
         <RegistryValue Root="HKLM" Key="SOFTWARE\GizmoData\Hardcharger Power BI Connector"
