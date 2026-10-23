@@ -8,7 +8,7 @@ $batch = @"
 @echo off
 call "$vcvars" >nul
 if errorlevel 1 exit /b 1
-cl /nologo /LD /MT /O2 /W4 /WX /Fo:.deps/trust-policy.obj installer/trust-policy.cpp /link /OUT:installer/trust-policy.dll /IMPLIB:.deps/trust-policy.lib msi.lib advapi32.lib
+cl /nologo /LD /MT /O2 /EHsc /W4 /WX /Fo.deps/trust-policy.obj installer/trust-policy.cpp /link /OUT:installer/trust-policy.dll /IMPLIB:.deps/trust-policy.lib msi.lib advapi32.lib
 "@
 Set-Content .deps/build-trust-action.cmd $batch
 cmd.exe /d /c .deps\build-trust-action.cmd
