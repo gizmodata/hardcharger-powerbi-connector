@@ -2,7 +2,7 @@
 
 ## [Unreleased]
 
-## [v1.0.0] - 2026-10-23
+## [v1.0.1] - 2026-10-23
 
 ### Added
 - Hardcharger Power BI connector with Import, DirectQuery, hierarchical catalog/schema/table navigation and DuckDB query folding.
@@ -17,3 +17,6 @@
 - Include TLS choice in the credential scope and reject invalid hosts/ports. Query folding identity excludes credentials and distinguishes TLS trust settings and catalogs.
 - Give the MSI permanent Hardcharger-specific upgrade/component identities, preserving side-by-side GizmoSQL installations. Append connector trust without replacing unrelated certificate entries. Install the native driver in the Power Query host’s ADBC Drivers directory; the current engine does not use PATH for discovery.
 - Retain upstream SQL dialect smoke coverage; replace the historical ODBC SQLTables diagnostic with native ADBC catalog tests.
+
+### Fixed
+- Initialize the installer verification log directory in isolated signing jobs so signed releases complete the same installation checks as development builds.

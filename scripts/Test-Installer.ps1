@@ -1,4 +1,5 @@
 $ErrorActionPreference = 'Stop'
+New-Item -ItemType Directory -Force test-results | Out-Null
 $policy = 'HKLM:\SOFTWARE\Policies\Microsoft\Power BI Desktop'
 $sentinel = '0123456789ABCDEF0123456789ABCDEF01234567'
 New-Item $policy -Force | Out-Null
