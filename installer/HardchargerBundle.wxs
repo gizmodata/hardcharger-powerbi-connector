@@ -1,26 +1,26 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
      xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
-  <Package Name="GizmoSQL Power BI Connector"
+  <Package Name="Hardcharger Power BI Connector"
            Manufacturer="GizmoData LLC"
            Version="$(var.ProductVersion)"
-           UpgradeCode="F7A8B9C0-D1E2-3456-7890-ABCDEF123456"
+           UpgradeCode="D7F4B2AA-139E-49D1-8AA4-C575F690CFB7"
            Scope="perMachine">
 
-    <Icon Id="gizmosql_odbc.ico" SourceFile="gizmosql_odbc.ico" />
-    <Property Id="ARPPRODUCTICON" Value="gizmosql_odbc.ico" />
+    <Icon Id="hardcharger.ico" SourceFile="hardcharger.ico" />
+    <Property Id="ARPPRODUCTICON" Value="hardcharger.ico" />
 
     <MajorUpgrade AllowSameVersionUpgrades="yes"
-                  DowngradeErrorMessage="A newer version of GizmoSQL Power BI Connector is already installed." />
+                  DowngradeErrorMessage="A newer version of Hardcharger Power BI Connector is already installed." />
 
-    <Media Id="1" Cabinet="gizmosql.cab" EmbedCab="yes" />
+    <Media Id="1" Cabinet="hardcharger.cab" EmbedCab="yes" />
 
     <!-- Banner and dialog images -->
     <WixVariable Id="WixUIBannerBmp" Value="banner.bmp" />
     <WixVariable Id="WixUIDialogBmp" Value="dialog.bmp" />
     <WixVariable Id="WixUILicenseRtf" Value="license.rtf" />
 
-    <Feature Id="ProductFeature" Title="GizmoSQL Power BI Connector" Level="1">
+    <Feature Id="ProductFeature" Title="Hardcharger Power BI Connector" Level="1">
       <ComponentGroupRef Id="DriverComponents" />
       <ComponentGroupRef Id="ConnectorComponents" />
       <ComponentGroupRef Id="PowerBITrustComponents" />
@@ -31,7 +31,7 @@
 
   <Fragment>
     <StandardDirectory Id="ProgramFiles64Folder">
-      <Directory Id="INSTALLFOLDER" Name="GizmoSQL Power BI Connector" />
+      <Directory Id="INSTALLFOLDER" Name="Hardcharger Power BI Connector" />
     </StandardDirectory>
     <!-- Both paths needed: Store version uses "Power BI Desktop",
          standalone installer uses "Microsoft Power BI Desktop" -->
@@ -45,14 +45,16 @@
     </StandardDirectory>
   </Fragment>
 
-  <!-- Apache Arrow Flight SQL ADBC driver. The driver is a Go-built native DLL
+  <!-- Hardcharger ADBC driver. The driver is a Go-built native DLL
        (no VC++ runtime dependency). Adding the install dir to PATH so the
-       Power BI mashup container resolves "libadbc_driver_flightsql.dll" by name. -->
+       Power BI mashup container resolves "libadbc_driver_hardcharger.dll" by name. -->
   <Fragment>
     <ComponentGroup Id="DriverComponents" Directory="INSTALLFOLDER">
-      <Component Id="AdbcFlightSqlDll" Guid="B2C3D4E5-F6A7-8901-BCDE-F12345678901">
-        <File Id="LibAdbcDriverFlightSqlDll"
-              Source="!(bindpath.BinDir)\libadbc_driver_flightsql.dll"
+      <Component Id="AdbcHardchargerDll" Guid="B0C0AB27-38C0-4E6C-9BB6-D7F4CFC45677">
+        <File Id="DriverThirdPartyNotices" Source="!(bindpath.BinDir)\THIRD_PARTY_NOTICES" />
+        <File Id="DriverLicense" Source="!(bindpath.BinDir)\LICENSE" />
+        <File Id="LibAdbcDriverHardchargerDll"
+              Source="!(bindpath.BinDir)\libadbc_driver_hardcharger.dll"
               KeyPath="yes" />
         <Environment Id="AdbcDriverPath"
                      Name="PATH"
@@ -67,26 +69,26 @@
          at the default "Recommended" security level without user intervention.
          See: https://learn.microsoft.com/en-us/power-bi/connect-data/desktop-trusted-third-party-connectors -->
     <ComponentGroup Id="PowerBITrustComponents" Directory="INSTALLFOLDER">
-      <Component Id="PowerBITrustedThumbprint" Guid="1A2B3C4D-5E6F-7890-AB12-CD34EF567890">
+      <Component Id="PowerBITrustedThumbprint" Guid="E3591AE7-BF08-421F-9664-B9261AA325EE">
         <RegistryKey Root="HKLM" Key="SOFTWARE\Policies\Microsoft\Power BI Desktop">
           <RegistryValue Name="TrustedCertificateThumbprints" Type="multiString"
-                         Value="$(var.CertThumbprint)" />
+                         Value="$(var.CertThumbprint)" MultiStringAction="append" />
         </RegistryKey>
       </Component>
     </ComponentGroup>
 
     <!-- Power BI connector — install to both Store and standalone paths -->
     <ComponentGroup Id="ConnectorComponents">
-      <Component Id="ConnectorPqxStore" Guid="E5F6A7B8-C9D0-1234-EFAB-345678901234"
+      <Component Id="ConnectorPqxStore" Guid="74DB7944-2F2A-4238-B1FD-EE452CC3CB6D"
                  Directory="CustomConnectorsStoreDir">
-        <File Id="GizmoSqlPqxStore"
-              Source="!(bindpath.ConnectorDir)\GizmoSQL.pqx"
+        <File Id="HardchargerPqxStore"
+              Source="!(bindpath.ConnectorDir)\Hardcharger.pqx"
               KeyPath="yes" />
       </Component>
-      <Component Id="ConnectorPqxDesktop" Guid="A1B2C3D4-E5F6-7890-ABCD-EF1234567890"
+      <Component Id="ConnectorPqxDesktop" Guid="999DA53B-ACC8-4896-83B7-F1666735DC6E"
                  Directory="CustomConnectorsDesktopDir">
-        <File Id="GizmoSqlPqxDesktop"
-              Source="!(bindpath.ConnectorDir)\GizmoSQL.pqx"
+        <File Id="HardchargerPqxDesktop"
+              Source="!(bindpath.ConnectorDir)\Hardcharger.pqx"
               KeyPath="yes" />
       </Component>
     </ComponentGroup>

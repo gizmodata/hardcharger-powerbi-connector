@@ -6,13 +6,13 @@
 #   docker compose down
 
 services:
-  gizmosql:
-    image: gizmodata/gizmosql:latest
+  hardcharger:
+    image: gizmodata/hardcharger:latest
     ports:
       - "31337:31337"
     environment:
-      GIZMOSQL_USERNAME: gizmosql_user
-      GIZMOSQL_PASSWORD: gizmosql_password
+      HARDCHARGER_USERNAME: hardcharger_user
+      HARDCHARGER_PASSWORD: hardcharger_password
       DATABASE_FILENAME: /tmp/test.duckdb
       TLS_ENABLED: "0"
       PRINT_QUERIES: "1"

@@ -1,500 +1,171 @@
 name: CI
-
 on:
   push:
-    branches: [main, adbc-flight-sql]
-    tags: ["v*"]
-    paths-ignore: ["**.md"]
+    branches: [main]
+    tags: ['v*']
   pull_request:
-    branches: [main, adbc-flight-sql]
-    paths-ignore: ["**.md"]
-
+    branches: [main]
+  workflow_dispatch:
 permissions:
   contents: read
-
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
 jobs:
-  build-connector:
-    runs-on: windows-latest
-    name: Build Connector
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Build .mez (zipped connector)
-        shell: pwsh
-        run: |
-          $stagingDir = New-Item -ItemType Directory -Path "staging" -Force
-
-          # Connector source files
-          Copy-Item "GizmoSQL.pq" $stagingDir
-          Copy-Item "GizmoSQL.query.pq" $stagingDir
-          Copy-Item "Diagnostics.pqm" $stagingDir
-          Copy-Item "SqlGenerator.pqm" $stagingDir
-          Copy-Item "SqlGeneratorCommon.pqm" $stagingDir
-          Copy-Item "resources.resx" $stagingDir
-
-          # Icons (flattened into .mez root for Extension.Contents)
-          Copy-Item "icons\*.png" $stagingDir
-
-          Compress-Archive -Path "staging\*" -DestinationPath "GizmoSQL.zip"
-          Rename-Item "GizmoSQL.zip" "GizmoSQL.mez"
-
-          Write-Host "Built GizmoSQL.mez ($(Get-Item GizmoSQL.mez | Select-Object -ExpandProperty Length) bytes)"
-
-      - name: Install Power Query SDK Tools
-        shell: pwsh
-        run: |
-          $nugetUrl = "https://www.nuget.org/api/v2/package/Microsoft.PowerQuery.SdkTools"
-          Invoke-WebRequest -Uri $nugetUrl -OutFile "sdktools.zip"
-          Expand-Archive -Path "sdktools.zip" -DestinationPath "sdktools"
-          $makePqxDir = (Get-ChildItem -Path "sdktools" -Filter "MakePQX.exe" -Recurse | Select-Object -First 1).DirectoryName
-          Write-Host "MakePQX directory: $makePqxDir"
-          Write-Host "Contents:"
-          Get-ChildItem $makePqxDir | Select-Object Name
-          echo "MAKEPQX_DIR=$makePqxDir" >> $env:GITHUB_ENV
-          Write-Host "Installed MakePQX from Microsoft.PowerQuery.SdkTools"
-
-      - name: Pack .mez into .pqx
-        shell: pwsh
-        run: |
-          & "$env:MAKEPQX_DIR\MakePQX.exe" pack -mz GizmoSQL.mez -t GizmoSQL.pqx
-          Write-Host "Packed GizmoSQL.pqx ($(Get-Item GizmoSQL.pqx | Select-Object -ExpandProperty Length) bytes)"
-
-      - name: Upload .mez artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: GizmoSQL.mez
-          path: GizmoSQL.mez
-          if-no-files-found: error
-
-      - name: Upload .pqx artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: GizmoSQL.pqx
-          path: GizmoSQL.pqx
-          if-no-files-found: error
-
-  pqtest-connector:
-    needs: [build-connector]
+  build-test:
+    name: Build and full test suite
     runs-on: windows-2022
-    name: PQTest Connector
-    timeout-minutes: 15
+    timeout-minutes: 25
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Download .mez artifact
-        uses: actions/download-artifact@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v5
         with:
-          name: GizmoSQL.mez
-
-      - name: Install GizmoSQL server
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: pwsh
+          dotnet-version: '10.0.x'
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.14'
+      - name: Install pinned Power Query SDK
+        run: ./scripts/Install-Dependencies.ps1 Sdk
+      - name: Build and pack connector
+        run: ./scripts/Build-Connector.ps1
+      - name: Compile signing tool and check dependencies
         run: |
-          # MSI installs server + VC++ runtime DLLs needed by DuckDB extensions
-          gh release download --repo gizmodata/gizmosql --pattern "GizmoSQL-amd64.msi" --dir server
-          Start-Process msiexec.exe -ArgumentList "/i server\GizmoSQL-amd64.msi /quiet /norestart" -Wait
-          $serverExe = "C:\Program Files\GizmoSQL\gizmosql_server.exe"
-          if (!(Test-Path $serverExe)) { throw "gizmosql_server.exe not found at $serverExe" }
-          Write-Host "GizmoSQL server installed: $serverExe"
-          Get-ChildItem "C:\Program Files\GizmoSQL" | Select-Object Name
-          echo "GIZMOSQL_SERVER=$serverExe" >> $env:GITHUB_ENV
-
-      - name: Download Apache Flight SQL ADBC driver
-        shell: pwsh
+          dotnet build installer/sign-pqx --configuration Release
+          if ($LASTEXITCODE -ne 0) { throw 'Signing tool build failed' }
+          dotnet list installer/sign-pqx package --vulnerable --include-transitive
+          if ($LASTEXITCODE -ne 0) { throw 'Dependency audit failed' }
+      - name: Install released Hardcharger native driver and server
         run: |
-          # The Windows DLL is shipped inside the Python wheel as libadbc_driver_flightsql.so
-          # (Go-cross-compile naming quirk). Extract and rename to .dll.
-          $url = "https://github.com/apache/arrow-adbc/releases/download/apache-arrow-adbc-23/adbc_driver_flightsql-1.11.0-py3-none-win_amd64.whl"
-          Invoke-WebRequest -Uri $url -OutFile flightsql.whl
-          Expand-Archive -Path flightsql.whl -DestinationPath flightsql-extracted -Force
-          New-Item -ItemType Directory -Path driver -Force | Out-Null
-          Copy-Item flightsql-extracted\adbc_driver_flightsql\libadbc_driver_flightsql.so driver\libadbc_driver_flightsql.dll
-          $dllPath = (Resolve-Path "driver").Path
-          Write-Host "Adding $dllPath to PATH so the mashup container can load the driver"
-          echo "$dllPath" >> $env:GITHUB_PATH
-
-      - name: Install Power Query SDK Tools
-        shell: pwsh
-        run: |
-          Invoke-WebRequest -Uri "https://www.nuget.org/api/v2/package/Microsoft.PowerQuery.SdkTools" -OutFile sdktools.zip
-          Expand-Archive sdktools.zip -DestinationPath sdktools
-          $pqtest = (Get-ChildItem -Path sdktools -Filter "PQTest.exe" -Recurse | Select-Object -First 1).FullName
-          Write-Host "PQTest path: $pqtest"
-          echo "PQTEST=$pqtest" >> $env:GITHUB_ENV
-
-      - name: Start GizmoSQL server
-        shell: pwsh
-        run: |
-          # test_data drives the folding/type tests. dept + emp (emp.dept_id
-          # REFERENCES dept) give a primary-key/foreign-key pair for the
-          # Relationships test and for manual relationship checks in Power BI.
-          $initSql = "CREATE TABLE test_data (id INTEGER, name VARCHAR, value DOUBLE); INSERT INTO test_data VALUES (1, 'alice', 3.14), (2, 'bob', 2.72), (3, 'charlie', 1.41); CREATE TABLE dept (dept_id INTEGER PRIMARY KEY, dname VARCHAR NOT NULL); CREATE TABLE emp (emp_id INTEGER PRIMARY KEY, dept_id INTEGER REFERENCES dept(dept_id), ename VARCHAR); INSERT INTO dept VALUES (1, 'Accounting'), (2, 'HR'); INSERT INTO emp VALUES (10, 1, 'Phil'), (20, 2, 'Scharlene');"
-
-          $server = Start-Process -FilePath $env:GIZMOSQL_SERVER `
-              -ArgumentList "--password gizmosql_password --print-queries --init-sql-commands `"$initSql`"" `
-              -PassThru -WindowStyle Hidden
-          echo "GIZMOSQL_PID=$($server.Id)" >> $env:GITHUB_ENV
-          Write-Host "Started GizmoSQL server (PID: $($server.Id))"
-
-      - name: Wait for GizmoSQL server
-        shell: pwsh
-        run: |
-          for ($i = 1; $i -le 30; $i++) {
-              try {
-                  $tcp = New-Object Net.Sockets.TcpClient
-                  $tcp.Connect("localhost", 31337)
-                  $tcp.Close()
-                  Write-Host "GizmoSQL server is ready"
-                  exit 0
-              } catch {
-                  Write-Host "Waiting for GizmoSQL... ($i/30)"
-                  Start-Sleep -Seconds 2
-              }
-          }
-          Write-Error "GizmoSQL server did not start in time"
-          exit 1
-
-      - name: Set PQTest credentials
-        shell: pwsh
-        run: |
-          $cred = @{
-              AuthenticationKind = "UsernamePassword"
-              AuthenticationProperties = @{
-                  Username = "gizmosql_user"
-                  Password = "gizmosql_password"
-              }
-              PrivacySetting = "None"
-              Permissions = @()
-          } | ConvertTo-Json
-
-          Write-Host "Setting credentials for PQTest..."
-          $cred | & $env:PQTEST set-credential -e GizmoSQL.mez -q tests\Navigation.query.pq
-          Write-Host "Credentials set successfully"
-
-      - name: Run PQTest
-        shell: pwsh
-        run: |
-          $output = & $env:PQTEST run-test -e GizmoSQL.mez -q tests -p
-          $results = $output | ConvertFrom-Json
-
-          $passed = 0
-          $failed = 0
-          $totalMs = 0
-
-          Write-Host ""
-          Write-Host "=========================================="
-          Write-Host "  PQTest Results"
-          Write-Host "=========================================="
-          Write-Host ""
-
-          foreach ($r in $results) {
-              $name = $r.Name -replace '\.query\.pq$', ''
-              $start = [DateTime]::Parse($r.StartTime)
-              $end = [DateTime]::Parse($r.EndTime)
-              $durationMs = [int]($end - $start).TotalMilliseconds
-              $totalMs += $durationMs
-
-              if ($r.Status -eq "Passed") {
-                  $icon = [char]0x2713  # checkmark
-                  $passed++
-              } else {
-                  $icon = "X"
-                  $failed++
-              }
-
-              $rowInfo = ""
-              if ($null -ne $r.RowCount) { $rowInfo = " ($($r.RowCount) rows)" }
-              Write-Host "  $icon $name ... $($r.Status)${rowInfo} [${durationMs}ms]"
-
-              # Show output summary for passed tests
-              if ($r.Status -eq "Passed" -and $r.Output -and $r.Output.Count -gt 0) {
-                  foreach ($row in $r.Output) {
-                      $fields = ($row.PSObject.Properties | Where-Object {
-                          $_.Name -notin @('Kind')
-                      } | ForEach-Object { "$($_.Name)=$($_.Value)" }) -join ", "
-                      if ($fields) { Write-Host "      $fields" }
-                  }
-              }
-
-              # Show error details for failed tests
-              if ($r.Status -ne "Passed") {
-                  if ($r.Error) { Write-Host "      Error: $($r.Error)" }
-                  if ($r.DiagnosticEvents -and $r.DiagnosticEvents.PSObject.Properties.Count -gt 0) {
-                      Write-Host "      Diagnostics: $($r.DiagnosticEvents | ConvertTo-Json -Compress)"
-                  }
-              }
-          }
-
-          Write-Host ""
-          Write-Host "------------------------------------------"
-          Write-Host "  $passed passed, $failed failed ($($results.Count) total) [${totalMs}ms]"
-          Write-Host "=========================================="
-          Write-Host ""
-
-          if ($failed -gt 0) {
-              Write-Error "$failed test(s) failed"
-              exit 1
-          }
-
-      - name: Stop GizmoSQL server
+          ./scripts/Install-Dependencies.ps1 Driver
+          ./scripts/Install-Dependencies.ps1 Server
+          python -m pip install adbc-driver-manager==1.12.0 pyarrow==23.0.1
+          if ($LASTEXITCODE -ne 0) { throw 'Python test dependency installation failed' }
+      - name: Run all Power Query and native ADBC tests
+        run: ./scripts/Test-Connector.ps1
+      - name: Upload test evidence
         if: always()
-        shell: pwsh
-        run: |
-          if ($env:GIZMOSQL_PID) {
-              $proc = Get-Process -Id $env:GIZMOSQL_PID -ErrorAction SilentlyContinue
-              if ($proc -and !$proc.HasExited) {
-                  Stop-Process -Id $env:GIZMOSQL_PID -Force
-                  Write-Host "Stopped GizmoSQL server (PID: $env:GIZMOSQL_PID)"
-              } else {
-                  Write-Host "GizmoSQL server already exited"
-              }
-          }
-
-  sign-connector:
-    needs: [build-connector, pqtest-connector]
-    if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: windows-2022
-    name: Sign Connector
-    environment: production
-    outputs:
-      cert-thumbprint: ${{ steps.sign.outputs.thumbprint }}
-    permissions:
-      id-token: write
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Download .pqx artifact
-        uses: actions/download-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
-          name: GizmoSQL.pqx
-
-      - name: Azure login via OIDC
-        uses: azure/login@v2
+          name: test-results
+          path: test-results/
+          if-no-files-found: warn
+      - uses: actions/upload-artifact@v7
         with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          allow-no-subscriptions: true
-
-      - name: Sign .pqx via Azure Key Vault
-        id: sign
-        shell: pwsh
-        run: |
-          $output = dotnet run --project installer/sign-pqx -- `
-            "${{ secrets.AZURE_KEY_VAULT_URI }}" `
-            "${{ secrets.AZURE_CERT_NAME }}" `
-            GizmoSQL.pqx
-          Write-Host $output
-          $thumbprint = ($output | Select-String "Thumbprint:\s+(\S+)").Matches[0].Groups[1].Value
-          Write-Host "Extracted thumbprint: $thumbprint"
-          echo "thumbprint=$thumbprint" >> $env:GITHUB_OUTPUT
-
-      - name: Upload signed .pqx artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: GizmoSQL-signed.pqx
-          path: GizmoSQL.pqx
+          name: connector
+          path: |
+            Hardcharger.mez
+            Hardcharger.pqx
           if-no-files-found: error
 
-  build-bundled-msi:
-    needs: [sign-connector]
+  sign:
+    name: Sign connector and build signed installer
+    needs: build-test
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: windows-2022
-    name: Build Bundled MSI
+    timeout-minutes: 20
     environment: production
     permissions:
-      id-token: write
       contents: read
+      id-token: write
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Download signed .pqx artifact
-        uses: actions/download-artifact@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v5
         with:
-          name: GizmoSQL-signed.pqx
-          path: installer/connector
-
-      - name: Download Apache Flight SQL ADBC driver
-        shell: pwsh
-        run: |
-          # Bundle a pinned ADBC driver version so the connector ships with a
-          # known-good driver. Tracks apache/arrow-adbc release apache-arrow-adbc-23
-          # (driver version 1.11.0). The Windows DLL is shipped inside the Python
-          # wheel as libadbc_driver_flightsql.so; we extract and rename to .dll.
-          $url = "https://github.com/apache/arrow-adbc/releases/download/apache-arrow-adbc-23/adbc_driver_flightsql-1.11.0-py3-none-win_amd64.whl"
-          Invoke-WebRequest -Uri $url -OutFile flightsql.whl
-          Expand-Archive -Path flightsql.whl -DestinationPath flightsql-extracted -Force
-          New-Item -ItemType Directory -Path installer\bin -Force | Out-Null
-          Copy-Item flightsql-extracted\adbc_driver_flightsql\libadbc_driver_flightsql.so installer\bin\libadbc_driver_flightsql.dll
-          Write-Host "Bundled libadbc_driver_flightsql.dll ($(Get-Item installer\bin\libadbc_driver_flightsql.dll | Select-Object -ExpandProperty Length) bytes)"
-
-      - name: Install WiX Toolset
-        run: |
-          dotnet tool install --global wix --version 6.0.2
-          wix extension add WixToolset.UI.wixext/6.0.2
-
-      - name: Convert logo to BMP for installer dialogs
-        shell: pwsh
-        run: |
-          Add-Type -AssemblyName System.Drawing
-
-          # Draw the logo scaled to fit inside a max box while preserving its
-          # aspect ratio (the source logo is square 1024x1024 — drawing it into
-          # a hardcoded wide box squishes it).
-          function Draw-LogoFit($graphics, $img, $x, $y, $maxW, $maxH) {
-            $scale = [Math]::Min($maxW / $img.Width, $maxH / $img.Height)
-            $w = [int]($img.Width * $scale)
-            $h = [int]($img.Height * $scale)
-            $graphics.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
-            $graphics.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::HighQuality
-            $graphics.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
-            $graphics.DrawImage($img, $x, $y, $w, $h)
-          }
-
-          $logo = [System.Drawing.Image]::FromFile("${{ github.workspace }}\installer\gizmosql_logo.png")
-
-          # Create banner (493x58) — logo small on the RIGHT since WixUI puts
-          # the page title text on the left.
-          $banner = New-Object System.Drawing.Bitmap(493, 58)
-          $g = [System.Drawing.Graphics]::FromImage($banner)
-          $g.Clear([System.Drawing.Color]::White)
-          Draw-LogoFit $g $logo 437 7 44 44
-          $g.Dispose()
-          $banner.Save("${{ github.workspace }}\installer\banner.bmp", [System.Drawing.Imaging.ImageFormat]::Bmp)
-
-          # Create dialog (493x312) — logo in the left strip; WixUI
-          # welcome/completion text column starts around x=165.
-          $dialog = New-Object System.Drawing.Bitmap(493, 312)
-          $g = [System.Drawing.Graphics]::FromImage($dialog)
-          $g.Clear([System.Drawing.Color]::White)
-          Draw-LogoFit $g $logo 22 30 120 120
-          $g.Dispose()
-          $dialog.Save("${{ github.workspace }}\installer\dialog.bmp", [System.Drawing.Imaging.ImageFormat]::Bmp)
-          $logo.Dispose()
-
-      - name: Create license.rtf
-        shell: pwsh
-        run: |
-          $license = Get-Content "${{ github.workspace }}\LICENSE" -Raw
-          $rtf = "{\rtf1\ansi\deff0 {\fonttbl {\f0 Consolas;}}\f0\fs18 " + ($license -replace "`n", "\par ") + "}"
-          Set-Content -Path "${{ github.workspace }}\installer\license.rtf" -Value $rtf
-
-      - name: Build MSI
-        run: |
-          $ref = "${{ github.ref_name }}"
-          $version = $ref.TrimStart("v")
-          if ($version -notmatch '^\d+\.\d+\.\d+$') { Write-Error "Could not derive a semantic version from '$ref'"; exit 1 }
-          wix build `
-            "${{ github.workspace }}\installer\GizmoSqlBundle.wxs" `
-            -arch x64 `
-            -d ProductVersion="$version" `
-            -d CertThumbprint="${{ needs.sign-connector.outputs.cert-thumbprint }}" `
-            -b BinDir="${{ github.workspace }}\installer\bin" `
-            -b ConnectorDir="${{ github.workspace }}\installer\connector" `
-            -b "${{ github.workspace }}\installer" `
-            -o "${{ github.workspace }}\installer\GizmoSQL-PowerBI-Setup-x64.msi" `
-            -ext WixToolset.UI.wixext
-
-      - name: Azure login via OIDC
-        uses: azure/login@v2
+          dotnet-version: '10.0.x'
+      - uses: actions/download-artifact@v8
+        with:
+          name: connector
+      - uses: azure/login@v3
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           allow-no-subscriptions: true
-
-      - name: Install AzureSignTool
-        run: dotnet tool install --global AzureSignTool
-
-      - name: Sign MSI
+      - name: Sign and verify PQX using Azure Key Vault
+        id: pqx
+        env:
+          VAULT_URI: ${{ secrets.AZURE_KEY_VAULT_URI }}
+          CERT_NAME: ${{ secrets.AZURE_CERT_NAME }}
         run: |
-          AzureSignTool sign `
-            --azure-key-vault-url "${{ secrets.AZURE_KEY_VAULT_URI }}" `
-            --azure-key-vault-certificate "${{ secrets.AZURE_CERT_NAME }}" `
-            --azure-key-vault-managed-identity `
-            --timestamp-rfc3161 http://timestamp.digicert.com `
-            --timestamp-digest sha256 `
-            --file-digest sha256 `
-            --verbose `
-            "${{ github.workspace }}\installer\GizmoSQL-PowerBI-Setup-x64.msi"
-
-      - name: Upload MSI artifact
-        uses: actions/upload-artifact@v4
+          $output = dotnet run --project installer/sign-pqx -- $env:VAULT_URI $env:CERT_NAME Hardcharger.pqx
+          if ($LASTEXITCODE -ne 0) { throw 'PQX signing or verification failed' }
+          Write-Host ($output -join "`n")
+          $match = [regex]::Match(($output -join "`n"), 'Thumbprint:\s+([0-9A-Fa-f]{40})')
+          if (!$match.Success) { throw 'No verified signer thumbprint found' }
+          "thumbprint=$($match.Groups[1].Value)" >> $env:GITHUB_OUTPUT
+      - name: Install released Hardcharger driver
+        run: ./scripts/Install-Dependencies.ps1 Driver
+      - name: Build Hardcharger MSI
+        env:
+          CERT_THUMBPRINT: ${{ steps.pqx.outputs.thumbprint }}
+        run: |
+          $deps = Get-Content dependencies.json -Raw | ConvertFrom-Json
+          dotnet tool install --global wix --version $deps.wix
+          if ($LASTEXITCODE -ne 0) { throw 'WiX installation failed' }
+          wix extension add "WixToolset.UI.wixext/$($deps.wix)"
+          if ($LASTEXITCODE -ne 0) { throw 'WiX UI extension installation failed' }
+          New-Item -ItemType Directory -Force installer/connector | Out-Null
+          Copy-Item Hardcharger.pqx installer/connector/
+          $license = Get-Content LICENSE -Raw
+          $escaped = $license.Replace('\','\\').Replace('{','\{').Replace('}','\}') -replace "`r?`n", '\par '
+          Set-Content installer/license.rtf ('{\rtf1\ansi\deff0 {\fonttbl {\f0 Consolas;}}\f0\fs18 ' + $escaped + '}')
+          $version = $env:GITHUB_REF_NAME.TrimStart('v')
+          if ($version -notmatch '^\d+\.\d+\.\d+$') { throw 'Tag must be vX.Y.Z' }
+          wix build installer/HardchargerBundle.wxs -arch x64 -d ProductVersion=$version -d CertThumbprint=$env:CERT_THUMBPRINT -b BinDir=installer/bin -b ConnectorDir=installer/connector -b installer -o Hardcharger-PowerBI-Setup-x64.msi -ext WixToolset.UI.wixext
+          if ($LASTEXITCODE -ne 0) { throw 'MSI build failed' }
+      - name: Sign and verify MSI
+        env:
+          VAULT_URI: ${{ secrets.AZURE_KEY_VAULT_URI }}
+          CERT_NAME: ${{ secrets.AZURE_CERT_NAME }}
+          CERT_THUMBPRINT: ${{ steps.pqx.outputs.thumbprint }}
+        run: |
+          $deps = Get-Content dependencies.json -Raw | ConvertFrom-Json
+          dotnet tool install --global AzureSignTool --version $deps.azureSignTool
+          if ($LASTEXITCODE -ne 0) { throw 'AzureSignTool installation failed' }
+          AzureSignTool sign --azure-key-vault-url $env:VAULT_URI --azure-key-vault-certificate $env:CERT_NAME --azure-key-vault-managed-identity --timestamp-rfc3161 http://timestamp.digicert.com --timestamp-digest sha256 --file-digest sha256 Hardcharger-PowerBI-Setup-x64.msi
+          if ($LASTEXITCODE -ne 0) { throw 'MSI signing failed' }
+          $signature = Get-AuthenticodeSignature Hardcharger-PowerBI-Setup-x64.msi
+          if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Thumbprint -ne $env:CERT_THUMBPRINT) { throw 'MSI signature verification failed' }
+      - name: Test installation and removal
+        env:
+          CERT_THUMBPRINT: ${{ steps.pqx.outputs.thumbprint }}
+        run: ./scripts/Test-Installer.ps1
+      - uses: actions/upload-artifact@v7
         with:
-          name: GizmoSQL-PowerBI-Setup-x64.msi
-          path: installer/GizmoSQL-PowerBI-Setup-x64.msi
+          name: signed-release
+          path: |
+            Hardcharger.mez
+            Hardcharger.pqx
+            Hardcharger-PowerBI-Setup-x64.msi
           if-no-files-found: error
 
   release:
-    needs: [sign-connector, build-bundled-msi]
+    name: Publish verified release
+    needs: sign
     if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-latest
-    name: Release
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
       id-token: write
       attestations: write
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Download .mez artifact
-        uses: actions/download-artifact@v4
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
         with:
-          name: GizmoSQL.mez
+          name: signed-release
           path: release
-
-      - name: Download signed .pqx artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: GizmoSQL-signed.pqx
-          path: release
-
-      - name: Download bundled MSI artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: GizmoSQL-PowerBI-Setup-x64.msi
-          path: release
-
-      - name: Generate build provenance attestations
-        uses: actions/attest-build-provenance@v2
+      - name: Checksums
+        working-directory: release
+        run: sha256sum Hardcharger.mez Hardcharger.pqx Hardcharger-PowerBI-Setup-x64.msi > SHA256SUMS
+      - uses: actions/attest-build-provenance@v4
         with:
           subject-path: release/*
-
-      - name: Extract changelog section for this tag
-        id: changelog
-        run: |
-          version="${GITHUB_REF_NAME#v}"
-          # Match "## [v<version>] " — trailing space prevents v1.11.1 matching v1.11.14.
-          # CHANGELOG headers look like: "## [v2.0.0] - 2026-05-06"
-          notes=$(awk -v header="## [v${version}] " '
-            index($0, header) == 1 { p=1; next }
-            p && /^## \[/ { exit }
-            p { print }
-          ' CHANGELOG.md)
-          # Trim leading/trailing blank lines so the rendered release page is clean.
-          notes=$(printf '%s\n' "$notes" | awk '
-            NF { found=1 }
-            found { buf = buf $0 ORS }
-            END { sub(/\n+$/, "", buf); print buf }
-          ')
-          {
-            if [ -n "$notes" ]; then
-              printf '%s\n' "$notes"
-            else
-              printf '_No CHANGELOG.md entry found for `v%s`._\n' "$version"
-            fi
-          } > /tmp/release-notes.md
-          echo "Wrote $(wc -l < /tmp/release-notes.md) lines to /tmp/release-notes.md"
-
-      - name: Create GitHub Release
+      - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # --notes-file provides the curated CHANGELOG section as the body;
-          # --generate-notes appends auto-generated PR/commit list below it.
-          gh release create "${{ github.ref_name }}" \
-            --title "${{ github.ref_name }}" \
-            --notes-file /tmp/release-notes.md \
-            --generate-notes \
-            --notes-start-tag "$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo '')" \
-            release/*
+          python3 scripts/release_notes.py "$GITHUB_REF_NAME" > /tmp/hardcharger-powerbi-release-notes.md
+          gh release create "$GITHUB_REF_NAME" --title "Hardcharger Power BI Connector $GITHUB_REF_NAME" --notes-file /tmp/hardcharger-powerbi-release-notes.md release/*

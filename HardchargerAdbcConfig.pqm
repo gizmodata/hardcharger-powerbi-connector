@@ -1,0 +1,31 @@
+// HardchargerAdbcConfig.pqm — ADBC driver configuration for Hardcharger via Warp SQL.
+let
+    TypeInfo = Extension.LoadExpression("TypeInfo.pqm"),
+    HardchargerAdbcConfig = [
+        Name = "HardchargerAdbc",
+        Folder = "Hardcharger",
+        File = "libadbc_driver_hardcharger.dll",
+        DriverType = "Unmanaged",
+        EntryPoint = "AdbcDriverHardchargerInit",
+        IdentifierQuoteChar = """",
+        CatalogNameSeparator = ".",
+        TableTypes = "BASE TABLE, VIEW",
+        SupportsCatalog = true,
+        SupportsSchema = true,
+        SupportedConnectionOptions = [
+            adbc.connection.catalog = true,
+            adbc.connection.db_schema = true
+        ],
+        TypeInfo = Table.SelectColumns(
+            TypeInfo,
+            {"Name", "SqlType", "Unsigned", "ColumnSize", "NumberPrecisionRadix", "LiteralPrefix", "LiteralSuffix"}
+        )
+    ],
+    Extension.LoadExpression = (name as text) =>
+        let
+            binary = Extension.Contents(name),
+            asText = Text.FromBinary(binary)
+        in
+            Expression.Evaluate(asText, #shared)
+in
+    HardchargerAdbcConfig

@@ -1,5 +1,5 @@
-[Version = "2.0.1"]
-section GizmoSQL;
+[Version = "1.0.0"]
+section Hardcharger;
 
 // Diagnostics module for trace logging (disable for release builds)
 EnableTraceOutput = false;
@@ -18,15 +18,10 @@ Diagnostics.LogValue = if EnableTraceOutput then Diagnostics[LogValue] else (pre
 Diagnostics.LogValue2 = if EnableTraceOutput then Diagnostics[LogValue2] else (prefix, value, result, optional delayed) => result;
 Diagnostics.LogFailure = if EnableTraceOutput then Diagnostics[LogFailure] else (text, function) => function();
 
-GizmoSqlGenerator = Extension.LoadExpression("SqlGenerator.pqm");
+HardchargerGenerator = Extension.LoadExpression("SqlGenerator.pqm");
 
-// `Adbc.Connection` / `SqlView.Generator` are the newer (experimental) ADBC
-// extensibility APIs, replacing `Adbc.DataSource`. The key difference: the
-// first argument to SqlView.Generator is a unique identifier the engine uses
-// to decide whether two queries point at the same data source — which is what
-// lets cross-table joins fold in DirectQuery (issue #2 /
-// microsoft/vscode-powerquery-sdk#409: Adbc.DataSource rejected them with
-// FoldingFailureException "different data sources" at VisitJoinCore).
+// Current Microsoft ADBC pattern: Adbc.Connection + SqlView.Generator.
+// https://learn.microsoft.com/en-us/power-query/adbc
 Adbc.Connection =
     try
         #shared[Adbc.Connection]
@@ -41,31 +36,23 @@ SqlView.Generator =
         (uniqueIdentifier, sqlGenerator, getData) =>
             error Error.Record("Expression.Error", "SqlView.Generator is not available in this Power BI Desktop version. Update to a recent build.");
 
-// Stock Apache Arrow Flight SQL ADBC driver (Go) — same driver and discovery
-// mechanism as the previous Adbc.DataSource configuration.
-Driver = [
-    Name = "FlightSqlAdbcGizmoSQL",
-    Folder = "FlightSQL",
-    File = "libadbc_driver_flightsql.dll",
-    DriverType = "Unmanaged",
-    EntryPoint = "FlightSqlDriverInit"
-];
+Driver = Extension.LoadExpression("HardchargerAdbcConfig.pqm");
 
 // "Get Data" dialog parameters — kept to match the v1.x ODBC connector
-GizmoSQL.ContentsType = type function (
+Hardcharger.ContentsType = type function (
     server as (type text meta [
         Documentation.FieldCaption = "Server",
-        Documentation.FieldDescription = "Hostname or IP address of the GizmoSQL server",
+        Documentation.FieldDescription = "Hostname or IP address of the Hardcharger server",
         Documentation.SampleValues = {"localhost"}
     ]),
     port as (type number meta [
         Documentation.FieldCaption = "Port",
-        Documentation.FieldDescription = "Flight SQL gRPC port of the GizmoSQL server",
+        Documentation.FieldDescription = "Warp SQL HTTP(S) port of the Hardcharger server",
         Documentation.SampleValues = {31337}
     ]),
-    optional useEncryption as (type logical meta [
+    useEncryption as (type logical meta [
         Documentation.FieldCaption = "Use Encryption (TLS)",
-        Documentation.FieldDescription = "Connect with grpc+tls://; disable to use plain grpc://",
+        Documentation.FieldDescription = "Use HTTPS; disable for a plain HTTP development server",
         Documentation.AllowedValues = {true, false}
     ]),
     optional disableCertificateVerification as (type logical meta [
@@ -80,55 +67,52 @@ GizmoSQL.ContentsType = type function (
     ])
 ) as table;
 
-// Build the gRPC URI from the server/port/encryption parameters.
+// TLS is a required data-source parameter so credential scopes and gateway
+// TestConnection preserve the chosen transport. Credentials never enter the URI.
 BuildUri = (server as text, port as number, useEncryption as nullable logical) as text =>
     let
-        scheme = if useEncryption = false then "grpc" else "grpc+tls"
+        host = Text.Lower(Text.Trim(server)),
+        validHost = host <> "" and not List.AnyTrue(List.Transform({"/", "?", "#", "@", " "}, each Text.Contains(host, _))),
+        validPort = port >= 1 and port <= 65535 and Number.RoundDown(port) = port,
+        authority = if validHost and validPort then host & ":" & Number.ToText(port, "0", "en-US")
+            else error Error.Record("DataSource.Error", "Enter a hostname and a whole-number port between 1 and 65535.")
     in
-        scheme & "://" & server & ":" & Number.ToText(port);
+        "hardcharger://" & authority & (if useEncryption = false then "?tls=false" else "");
 
-// Map the current credential to Flight SQL ADBC database options.
+// Standard Power Query credential storage; tokens use Warp SQL's token option.
 GetCredentialProperties = () as record =>
     let
-        Credential = Extension.CurrentCredential(),
-        kind = Credential[AuthenticationKind]?
+        credential = Extension.CurrentCredential(),
+        kind = credential[AuthenticationKind]?
     in
         if kind = "UsernamePassword" then
-            [ username = Credential[Username], password = Credential[Password] ]
+            [username = credential[Username], password = credential[Password]]
         else if kind = "Key" then
-            [ #"adbc.flight.sql.authorization_header" = "Bearer " & Credential[Key] ]
+            [#"adbc.warp.auth.access_token" = credential[Key]]
         else if kind = "OAuth" then
-            // The OAuth poll returns the IdP's raw ID token, not a GizmoSQL
-            // session JWT — sending it as a Bearer header fails with "invalid
-            // token issuer". Present it through the Flight handshake instead
-            // (username "token", JWT as password — same convention as JDBC and
-            // gizmosql-ui): the server verifies it via JWKS
-            // (VerifyAndDecodeBootstrapToken) and issues its own session JWT
-            // for subsequent calls.
-            [ username = "token", password = Credential[access_token] ]
-        else
-            error Error.Record("Error", "Unsupported authentication kind");
+            [#"adbc.warp.auth.access_token" = credential[access_token]]
+        else error Error.Record("DataSource.Error", "Unsupported authentication kind.");
 
-[DataSource.Kind = "GizmoSQL", Publish = "GizmoSQL.Publish"]
-shared GizmoSQL.Contents = Value.ReplaceType(GizmoSQLImpl, GizmoSQL.ContentsType);
+[DataSource.Kind = "Hardcharger", Publish = "Hardcharger.Publish"]
+shared Hardcharger.Contents = Value.ReplaceType(HardchargerImpl, Hardcharger.ContentsType);
 
-GizmoSQLImpl = (server as text, port as number, optional useEncryption as logical, optional disableCertificateVerification as logical, optional defaultCatalog as text) as table =>
+HardchargerImpl = (server as text, port as number, useEncryption as logical, optional disableCertificateVerification as logical, optional defaultCatalog as text) as table =>
     let
-        context = GizmoSqlContext(server, port, useEncryption, disableCertificateVerification, defaultCatalog),
+        context = HardchargerContext(server, port, useEncryption, disableCertificateVerification, defaultCatalog),
         result = GetDatabases(context)
     in
         Diagnostics.LogValue2(
-            "GizmoSQL/Connection",
+            "Hardcharger/Connection",
             [ Server = server, Port = port, DefaultCatalog = defaultCatalog ],
             result
         );
 
-GizmoSqlContext = (server as text, port as number, useEncryption as nullable logical, disableCertificateVerification as nullable logical, defaultCatalog as nullable text) =>
+HardchargerContext = (server as text, port as number, useEncryption as nullable logical, disableCertificateVerification as nullable logical, defaultCatalog as nullable text) =>
     let
         Uri = BuildUri(server, port, useEncryption),
         TlsProperties =
             if disableCertificateVerification = true then
-                [ #"adbc.flight.sql.client_option.tls_skip_verify" = "true" ]
+                [ #"adbc.warp.tls.skip_verify" = "true" ]
             else
                 [],
         DatabaseProperties = [ uri = Uri ] & TlsProperties & GetCredentialProperties(),
@@ -150,8 +134,8 @@ GizmoSqlContext = (server as text, port as number, useEncryption as nullable log
         // a single native query (e.g. a DirectQuery join) only if their
         // identifiers compare equal. Keyed on the connection target only —
         // never include credentials here.
-        UniqueIdentifier = [ Module = ModuleIdentifier, Signature = [ Uri = Uri, Catalog = Catalog ] ],
-        SqlGenerator = SqlView.Generator(UniqueIdentifier, GizmoSqlGenerator, GetData)
+        UniqueIdentifier = [ Module = ModuleIdentifier, Signature = [ Uri = Uri, Catalog = Catalog, SkipVerify = disableCertificateVerification = true ] ],
+        SqlGenerator = SqlView.Generator(UniqueIdentifier, HardchargerGenerator, GetData)
     in
         [
             ExecuteQuery = ExecuteQuery,
@@ -432,92 +416,60 @@ GetPrimaryKeys = (exec, catalog, schema, table) =>
     in
         if List.IsEmpty(primaryKeyColumns) then {} else {[Columns = primaryKeyColumns, Primary = true]};
 
-// --- OAuth (browser SSO) ---
-// GizmoSQL Enterprise server-side OAuth: GET /oauth/initiate returns
-// { session_uuid, auth_url }; the user signs in at auth_url; the IdP redirects
-// to the server's /oauth/callback, which exchanges the authorization code for
-// the IdP's ID token; GET /oauth/token/{session_uuid} returns
-// { status: pending | complete | error | not_found, token? } where token is
-// that raw ID token. The connector then presents it through the Flight
-// handshake (username "token") and the server issues its session JWT — see
-// GetCredentialProperties.
-// The OAuth HTTP endpoint listens on --oauth-port (default 31339) on the same
-// host as the Flight SQL endpoint. Note: Web.Contents cannot skip TLS
-// verification, so the OAuth endpoint's certificate must be trusted by the
-// client machine (unlike the gRPC channel, which honors
-// disableCertificateVerification).
-OAuthDefaultPort = 31339;
-OAuthPollIntervalSeconds = 1;
-OAuthPollAttempts = 60;
-
-// Always https: the data source path only carries required parameters
-// (server/port), so useEncryption is not available here — and OAuth/SSO
-// deployments register https redirect URIs with their IdP anyway. Use
-// username/password or Key auth against TLS-disabled dev servers.
+// Warp SQL browser sign-in (v1 §4.3). The browser returns to a same-origin
+// completion URL after the server processes the IdP callback. Poll secrets travel
+// only in POST bodies, and the resulting server token goes to the native driver.
 OAuthBaseUrl = (dataSourcePath as text) as text =>
-    let
-        json = Json.Document(dataSourcePath)
-    in
-        "https://" & json[server] & ":" & Number.ToText(OAuthDefaultPort);
+    let p = Json.Document(dataSourcePath)
+    in (if p[useEncryption] = false then "http://" else "https://")
+        & p[server] & ":" & Number.ToText(p[port], "0", "en-US");
+
+OAuthPost = (url as text, body as record) =>
+    Json.Document(Web.Contents(url, [
+        Content = Json.FromValue(body),
+        Headers = [#"Content-Type" = "application/json"],
+        ManualCredentials = true,
+        IsRetry = true
+    ]));
 
 StartLogin = (resourceUrl, state, display) =>
     let
         base = OAuthBaseUrl(resourceUrl),
-        initiate = Json.Document(Web.Contents(base & "/oauth/initiate")),
-        result = [
-            LoginUri = initiate[auth_url],
-            CallbackUri = base & "/oauth/callback",
-            WindowHeight = 800,
-            WindowWidth = 1024,
-            Context = [ BaseUrl = base, SessionUuid = initiate[session_uuid] ]
-        ]
-    in
-        Diagnostics.LogValue2("GizmoSQL/OAuth/StartLogin", [ BaseUrl = base ], result);
+        done = base & "/?powerbi_signin_complete=1",
+        flow = OAuthPost(base & "/warp/v1/auth/oauth/flows", [return_to = done])
+    in [
+        LoginUri = flow[authorize_url], CallbackUri = done,
+        WindowHeight = 800, WindowWidth = 1024,
+        Context = [BaseUrl = base, FlowId = flow[flow_id], PollSecret = flow[poll_secret],
+            Interval = List.Max({1, flow[poll_interval_s]? ?? 1})]
+    ];
 
-FinishLogin = (context, callbackUri, state) =>
-    let
-        // The embedded browser closes on navigation to /oauth/callback, which
-        // can happen before the server has processed the code exchange.
-        // Replaying the callback request is harmless when the exchange already
-        // completed and delivers the authorization code when it did not.
-        replayed = try Binary.Length(Web.Contents(callbackUri, [ IsRetry = true ])) otherwise 0,
-        token = if replayed >= 0 then PollForToken(context[BaseUrl], context[SessionUuid], OAuthPollAttempts) else error ""
-    in
-        [ access_token = token, token_type = "bearer" ];
+FinishLogin = (context, callbackUri, state) => PollForToken(context, 300);
 
-PollForToken = (baseUrl as text, sessionUuid as text, attemptsLeft as number) =>
+PollForToken = (context as record, secondsLeft as number) =>
     let
-        // IsRetry bypasses the M engine's request cache so each poll hits the server.
-        response = Json.Document(Web.Contents(baseUrl & "/oauth/token/" & sessionUuid, [ IsRetry = true ])),
-        status = response[status]?
+        response = OAuthPost(context[BaseUrl] & "/warp/v1/auth/oauth/flows/" & Uri.EscapeDataString(context[FlowId]),
+            [poll_secret = context[PollSecret]]),
+        status = response[state]?
     in
         if status = "complete" then
-            response[token]
-        else if status = "pending" then
-            if attemptsLeft <= 0 then
-                error Error.Record("Error", "OAuth sign-in timed out waiting for the token. Please try again.")
-            else
-                Function.InvokeAfter(
-                    () => PollForToken(baseUrl, sessionUuid, attemptsLeft - 1),
-                    #duration(0, 0, 0, OAuthPollIntervalSeconds)
-                )
-        else if status = "error" then
-            error Error.Record("Error", "OAuth sign-in failed: " & (response[#"error"]? ?? "unknown error"))
-        else if status = "not_found" then
-            error Error.Record("Error", "OAuth session expired before sign-in completed. Please try again.")
-        else
-            error Error.Record("Error", "Unexpected OAuth token status: " & (status ?? "(none)"));
+            [access_token = response[access_token], token_type = "bearer", expires_in = response[expires_in]?]
+        else if status = "failed" then
+            error Error.Record("DataSource.Error", "Browser sign-in failed. Please sign in again.")
+        else if secondsLeft <= 0 then
+            error Error.Record("DataSource.Error", "Browser sign-in timed out. Please sign in again.")
+        else Function.InvokeAfter(() => @PollForToken(context, secondsLeft - context[Interval]), #duration(0, 0, 0, context[Interval]));
 
 // Data source definition
-GizmoSQL = [
+Hardcharger = [
     TestConnection = (dataSourcePath) =>
         let
             json = Json.Document(dataSourcePath)
         in
-            { "GizmoSQL.Contents", json[server], json[port], json[useEncryption]?, json[disableCertificateVerification]?, json[defaultCatalog]? },
+            { "Hardcharger.Contents", json[server], json[port], json[useEncryption], json[disableCertificateVerification]?, json[defaultCatalog]? },
     Authentication = [
         UsernamePassword = [],
-        Key = [],
+        Key = [Label = "Bearer token", KeyLabel = "Token"],
         OAuth = [
             StartLogin = StartLogin,
             FinishLogin = FinishLogin,
@@ -528,17 +480,17 @@ GizmoSQL = [
 ];
 
 // Publish to Power BI "Get Data" dialog
-GizmoSQL.Publish = [
+Hardcharger.Publish = [
     Beta = false,
     Category = "Database",
     ButtonText = { Extension.LoadString("ButtonTitle"), Extension.LoadString("ButtonHelp") },
-    LearnMoreUrl = "https://github.com/gizmodata/gizmosql-powerbi-connector",
+    LearnMoreUrl = "https://github.com/gizmodata/hardcharger-powerbi-connector",
     SupportsDirectQuery = true,
-    SourceImage = GizmoSQL.Icons,
-    SourceTypeImage = GizmoSQL.Icons
+    SourceImage = Hardcharger.Icons,
+    SourceTypeImage = Hardcharger.Icons
 ];
 
-GizmoSQL.Icons = [
-    Icon16 = { Extension.Contents("GizmoSQL16.png"), Extension.Contents("GizmoSQL20.png"), Extension.Contents("GizmoSQL24.png"), Extension.Contents("GizmoSQL32.png") },
-    Icon32 = { Extension.Contents("GizmoSQL32.png"), Extension.Contents("GizmoSQL40.png"), Extension.Contents("GizmoSQL48.png"), Extension.Contents("GizmoSQL64.png") }
+Hardcharger.Icons = [
+    Icon16 = { Extension.Contents("Hardcharger16.png"), Extension.Contents("Hardcharger20.png"), Extension.Contents("Hardcharger24.png"), Extension.Contents("Hardcharger32.png") },
+    Icon32 = { Extension.Contents("Hardcharger32.png"), Extension.Contents("Hardcharger40.png"), Extension.Contents("Hardcharger48.png"), Extension.Contents("Hardcharger64.png") }
 ];

@@ -1,0 +1,13 @@
+CREATE TABLE test_data (id INTEGER, name VARCHAR, value DOUBLE);
+INSERT INTO test_data VALUES (1, 'alice', 3.14), (2, 'bob', 2.72), (3, 'charlie', 1.41);
+CREATE TABLE dept (dept_id INTEGER PRIMARY KEY, dname VARCHAR NOT NULL);
+CREATE TABLE emp (emp_id INTEGER PRIMARY KEY, dept_id INTEGER REFERENCES dept(dept_id), ename VARCHAR);
+INSERT INTO dept VALUES (1, 'Accounting'), (2, 'HR');
+INSERT INTO emp VALUES (10, 1, 'Phil'), (20, 2, 'Scharlene');
+CREATE TABLE extended_types (id INTEGER PRIMARY KEY, amount DECIMAL(18,2), d DATE, ts TIMESTAMP, flag BOOLEAN, note VARCHAR);
+INSERT INTO extended_types VALUES (1, 12345.67, DATE '2024-06-15', TIMESTAMP '2024-06-15 14:30:45', true, 'O''Brien'), (2, NULL, NULL, NULL, false, NULL);
+CREATE VIEW test_view AS SELECT id, name FROM test_data WHERE id > 1;
+CREATE TABLE "quoted'table" ("a""b" INTEGER);
+INSERT INTO "quoted'table" VALUES (42);
+ATTACH ':memory:' AS other;
+CREATE TABLE other.main.test_data AS SELECT 99 AS id;

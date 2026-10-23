@@ -20,3 +20,13 @@ Thumbs.db
 
 # Environment
 .env
+
+# Downloaded toolchains and test output
+.deps/
+sdktools/
+test-results/
+installer/connector/
+installer/license.rtf
+*.msi
+*.wixpdb
+__pycache__/

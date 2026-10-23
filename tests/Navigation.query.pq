@@ -1,6 +1,6 @@
 // Test navigation table: verify the connector can connect, authenticate,
-// and enumerate tables from the GizmoSQL server.
+// and enumerate tables from the Hardcharger server.
 let
-    Nav = GizmoSQL.Contents("localhost", 31337, false, false)
+    Nav = Hardcharger.Contents("localhost", 31337, false, false)
 in
     Nav

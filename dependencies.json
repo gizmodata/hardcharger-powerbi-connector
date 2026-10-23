@@ -1,0 +1,21 @@
+{
+  "powerQuerySdk": {
+    "version": "2.160.2",
+    "url": "https://api.nuget.org/v3-flatcontainer/microsoft.powerquery.sdktools/2.160.2/microsoft.powerquery.sdktools.2.160.2.nupkg",
+    "sha256": "861e4e1dbc60f58b7a8cda5f5364baa9d218ac367f09ad53d4cefa4605151656"
+  },
+  "hardchargerAdbc": {
+    "version": "2.0.2",
+    "repo": "gizmodata/hardcharger-adbc",
+    "asset": "libadbc_driver_hardcharger-v2.0.2-windows_amd64.tar.gz",
+    "sha256": "52cc82e8e8fbef5cc7e997d3f85daedf3daff27b6ce4d2a2687815b74864ee0a"
+  },
+  "hardchargerServer": {
+    "version": "2.0.0",
+    "repo": "gizmodata/hardcharger",
+    "asset": "hardcharger-windows-amd64.zip",
+    "sha256": "10b1efc27275b932203b7191ae14d741eef9dec608ff7a60739318eeb0340556"
+  },
+  "wix": "7.0.0",
+  "azureSignTool": "7.0.1"
+}

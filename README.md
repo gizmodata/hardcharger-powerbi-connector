@@ -1,180 +1,87 @@
-# [GizmoSQL](https://gizmodata.com/gizmosql) Power BI Connector
+<p align="center">
+  <a href="https://github.com/gizmodata/hardcharger">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="docs/assets/hardcharger-banner-dark.png">
+      <img src="docs/assets/hardcharger-banner-light.png" alt="Hardcharger™" width="400">
+    </picture>
+  </a>
+</p>
 
-[![Latest release](https://img.shields.io/github/v/release/gizmodata/gizmosql-powerbi-connector?sort=semver&label=release)](https://github.com/gizmodata/gizmosql-powerbi-connector/releases/latest)
-[![Download MSI installer](https://img.shields.io/badge/download-MSI%20installer-0078D4?logo=windows&logoColor=white)](https://github.com/gizmodata/gizmosql-powerbi-connector/releases/latest/download/GizmoSQL-PowerBI-Setup-x64.msi)
-[![Download signed .pqx](https://img.shields.io/badge/download-signed%20.pqx-5E5E5E?logo=powerbi&logoColor=white)](https://github.com/gizmodata/gizmosql-powerbi-connector/releases/latest/download/GizmoSQL.pqx)
-[![CI](https://github.com/gizmodata/gizmosql-powerbi-connector/actions/workflows/ci.yml/badge.svg)](https://github.com/gizmodata/gizmosql-powerbi-connector/actions/workflows/ci.yml)
-[![License: Apache-2.0](https://img.shields.io/github/license/gizmodata/gizmosql-powerbi-connector?label=license)](LICENSE)
+# Hardcharger Power BI Connector
 
-A Power Query custom connector (`.pqx`) that connects [Power BI Desktop](https://powerbi.microsoft.com/en-us/desktop/) directly to [GizmoSQL](https://gizmodata.com/gizmosql) via [ADBC](https://arrow.apache.org/adbc/) over [Arrow Flight SQL](https://arrow.apache.org/docs/format/FlightSql.html). Data flows column-natively in Apache Arrow format from server to Power BI — no row/column conversions in the driver path.
+Connect Power BI Desktop to **Hardcharger™** using the native [Hardcharger ADBC driver](https://github.com/gizmodata/hardcharger-adbc) and [Warp SQL](https://github.com/gizmodata/warp-sql). Arrow columnar results, Import, DirectQuery, DuckDB query folding and catalog/schema/table navigation.
 
-## Requirements
+[![CI](https://github.com/gizmodata/hardcharger-powerbi-connector/actions/workflows/ci.yml/badge.svg)](https://github.com/gizmodata/hardcharger-powerbi-connector/actions/workflows/ci.yml)
 
-- **GizmoSQL server `≥ v1.23.0`** for the v2.x connector. v1.23.0 is the first release that emits `ARROW:FLIGHT:SQL:TYPE_NAME` field metadata on `GetColumns` responses; without it, Power BI surfaces "Unable to understand the type for column" the moment you click into a table in the Navigator. Connection and table-tree navigation will still succeed against older servers, so the failure is visible but localized — upgrade the server to resolve.
-- **A recent Power BI Desktop build** for the bundled `Adbc.Connection` / `SqlView.Generator` M functions used by this connector (the newer — still experimental — ADBC extensibility surface, which is what enables cross-table join folding in DirectQuery).
-- **GizmoSQL Enterprise** (server started with `--oauth-*` flags) if you want OAuth browser SSO; username/password and bearer-token auth work on all editions.
+## Install
 
-## Features
+1. Download **Hardcharger-PowerBI-Setup-x64.msi** from the [latest release](https://github.com/gizmodata/hardcharger-powerbi-connector/releases/latest).
+2. Run the signed installer, then restart Power BI Desktop.
+3. Choose **Get Data → Database → Hardcharger**.
 
-- **ADBC over Arrow Flight SQL** — column-native transport via the Apache Flight SQL ADBC driver; no ODBC dependency
-- **DirectQuery support** — live queries against GizmoSQL without data import
-- **Hierarchical navigation** — browse databases > schemas > tables in the Navigator pane
-- **Query folding** — Power BI pushes filters, joins, and aggregations down as SQL (`LIMIT`/`OFFSET`, `CAST`, SQL-92)
-- **DuckDB-native SQL generator** — emits `date_trunc`, `date_diff`, `to_<unit>(n)` interval functions, `epoch_us`, etc., matching GizmoSQL's DuckDB dialect
-- **Authentication** — username/password (Basic), bearer-token (Key), or OAuth browser SSO (GizmoSQL Enterprise)
-- **Signed connector** — `.pqx` is code-signed for integrity verification
+The MSI installs `libadbc_driver_hardcharger.dll` and its licenses under `Program Files\Hardcharger Power BI Connector`, adds that directory to the system PATH, and installs the signed `Hardcharger.pqx` into both Power BI Custom Connectors directories under the installing user's Documents. It appends the signing certificate to Power BI's trusted connector policy so the default Recommended security level can load the connector. Install interactively as the intended Power BI user with administrator elevation; SYSTEM deployments and other Windows users need the connector copied to their own Documents directories. GizmoSQL can remain installed alongside it.
 
-## Installation
+Requires Windows x64, Hardcharger 2.0.0+ and a current Power BI Desktop with `Adbc.Connection` and `SqlView.Generator`. CI uses Power Query SDK Tools **2.160.2**. Power BI Desktop supplies the M engine separately; the installer does not update Desktop. This is a signed custom connector, not a Microsoft-certified built-in connector.
 
-### MSI Installer (recommended)
+## Connect
 
-1. Download `GizmoSQL-PowerBI-Setup-x64.msi` from the [latest release](https://github.com/gizmodata/gizmosql-powerbi-connector/releases/latest)
-2. Run the installer — it installs the Apache Flight SQL ADBC driver DLL (`libadbc_driver_flightsql.dll`) to `Program Files\GizmoSQL Power BI Connector\` and adds it to the system `PATH`, drops the signed connector into Power BI's Custom Connectors directory, and registers the signing certificate as trusted with Power BI
-3. Restart Power BI Desktop
-4. The connector appears under **Get Data > Database > GizmoSQL**
+Enter the hostname, port (normally **31337**) and TLS choice. TLS should be enabled for production; disable it for a local plain HTTP development server. Optional settings allow certificate-verification bypass for development and a default catalog. Use a hostname rather than a URI; raw driver option names and credentials do not belong in query parameters.
 
-No security setting changes required — the installer works with Power BI's default "Recommended" security level.
+Choose **Username/Password**, **Bearer token**, or **OAuth (Browser)**. The bearer token must be a Warp SQL access token issued by Hardcharger, rather than an identity provider's raw ID token. Browser sign-in uses Hardcharger's Warp SQL OAuth flow on the same HTTP(S) port; configure the identity provider on the server. Its certificate must be trusted by Windows because Power Query's HTTP client cannot bypass TLS verification. Browser tokens cannot be refreshed noninteractively; use username/password for unattended gateway refresh. Gateway administrators must install the driver and connector on the gateway machine and enable custom connectors.
 
-### Signed `.pqx` (manual)
+```powerquery
+// TLS enabled
+Source = Hardcharger.Contents("db.example.com", 31337, true)
+// Plain HTTP development server
+Source = Hardcharger.Contents("localhost", 31337, false)
+```
 
-1. Place the Apache Flight SQL ADBC driver `libadbc_driver_flightsql.dll` somewhere on the system `PATH`. The driver ships as a `.so`-named file inside the [Apache ADBC Python wheel for Windows](https://github.com/apache/arrow-adbc/releases/latest); extract `libadbc_driver_flightsql.so` from the wheel and rename it to `libadbc_driver_flightsql.dll`.
-2. Download `GizmoSQL.pqx` from the [latest release](https://github.com/gizmodata/gizmosql-powerbi-connector/releases/latest)
-3. Copy to `[Documents]\Power BI Desktop\Custom Connectors\` (create the folder if it doesn't exist)
-4. Restart Power BI Desktop
+Create model relationships using Power BI's **Manage relationships → Autodetect**, or manually. The connector emits primary key metadata. PQTest cannot verify relationships in the Desktop model.
 
-> **Note:** When installing the `.pqx` manually (without the MSI), Power BI may show a security warning because the signing certificate is not registered as trusted. To resolve this, either use the MSI installer above, or change **File > Options > Security > Data Extensions** to **(Not Recommended) Allow any extension to load without validation or warning**.
+## Architecture and current Microsoft guidance
 
-### Unsigned `.mez` (development only)
+```text
+Power BI Desktop / Power Query
+  Hardcharger.pqx
+    Adbc.Connection + SqlView.Generator
+      libadbc_driver_hardcharger.dll (AdbcDriverHardchargerInit)
+        Warp SQL / HTTP(S) / Arrow IPC
+          Hardcharger
+```
 
-1. Place `libadbc_driver_flightsql.dll` on the system `PATH` (see step 1 above)
-2. Download `GizmoSQL.mez` from the [latest release](https://github.com/gizmodata/gizmosql-powerbi-connector/releases/latest)
-3. Copy to `[Documents]\Power BI Desktop\Custom Connectors\`
-4. In Power BI Desktop, go to **File > Options > Security > Data Extensions** and select **(Not Recommended) Allow any extension to load without validation or warning**
-5. Restart Power BI Desktop
+This follows Microsoft's current [ADBC connector fundamentals](https://learn.microsoft.com/en-us/power-query/adbc), [advanced patterns](https://learn.microsoft.com/en-us/power-query/adbc-advanced-patterns) and [SQL generator architecture](https://learn.microsoft.com/en-us/power-query/adbc-sql-generator). The driver configuration and type metadata follow the [Microsoft DuckDB ADBC sample](https://github.com/microsoft/DataConnectors/tree/master/samples/DuckDbFlightSQL); Hardcharger needs its own driver, entrypoint, URI and auth options. FlightSQL and ODBC are not used. The explicit shared source identity lets tables from the same target fold cross-table joins.
 
-## Connecting
+See [the architecture review](docs/architecture.md) for the comparison, upstream revisions and validation limits.
 
-1. Open Power BI Desktop
-2. Click **Get Data > Database > GizmoSQL**
-3. Enter:
-   - **Server**: hostname or IP address (e.g., `localhost`)
-   - **Port**: port number (e.g., `31337`)
-4. Choose an authentication method:
-   - **Username/Password**: enter your GizmoSQL credentials
-   - **Key**: enter a bearer token (JWT)
-   - **OAuth (Browser)**: sign in with your identity provider via the embedded browser (requires GizmoSQL Enterprise with server-side OAuth configured)
-5. Click **Connect** and browse the Navigator tree
+## Develop and test
 
-## Authentication Methods
-
-| Method | ADBC connection options | Use Case |
-|--------|------------------------|----------|
-| Username/Password (Basic) | `username`, `password` | Standard database credentials; the Apache Flight SQL ADBC driver handshakes to obtain a bearer token from the server |
-| Key (Bearer Token) | `adbc.flight.sql.authorization_header = "Bearer <jwt>"` | Direct bearer/JWT auth (e.g., a token obtained out-of-band from your IdP or via a separate CLI tool) |
-| OAuth (Browser) | `username = "token"`, `password = <IdP ID token>` (obtained by the connector) | Browser-flow SSO against [GizmoSQL Enterprise server-side OAuth](https://github.com/gizmodata/gizmosql/blob/main/docs/oauth_sso_setup.md): the connector calls `/oauth/initiate`, the embedded browser signs in at the IdP, and the connector polls `/oauth/token/{session}` for the IdP's ID token, which the driver presents via the Flight handshake (same `token`-username convention as JDBC); the server verifies it via JWKS and issues its own session JWT. Assumes the OAuth endpoint on `--oauth-port` `31339` (default). The OAuth endpoint's TLS certificate must be trusted by the client machine — `Web.Contents` cannot skip certificate verification |
-
-## DirectQuery
-
-To use DirectQuery mode (live queries without data import):
-
-1. Connect to GizmoSQL as described above
-2. When prompted, select **DirectQuery** instead of **Import**
-3. Build your report — each visual generates live SQL queries
-
-### Query Folding
-
-The connector declares GizmoSQL's SQL capabilities so Power BI can fold transformations into native SQL:
-
-- `LIMIT` / `OFFSET` (not `TOP`)
-- `CAST` (not `CONVERT`)
-- Full SQL-92 compliance
-- Derived tables (subqueries in `FROM`)
-- All standard aggregate functions
-
-To verify query folding, right-click a step in the Power Query Editor and select **View Native Query**.
-
-## Relationships
-
-Unlike the v1.x ODBC connector, the v2.x ADBC connector does **not** auto-create foreign-key relationships in the model. Automatic relationship import is a built-in feature of Power BI's native `Odbc.DataSource` handler — it reads the driver's `SQLForeignKeys` catalog function and mirrors the relationships in for you. The v2.x connector instead uses a hand-rolled ADBC navigator (required to make DirectQuery cross-table joins fold — see [#2](https://github.com/gizmodata/gizmosql-powerbi-connector/issues/2)), and Power Query exposes no API for a custom connector to declare foreign keys. The connector does declare each table's **primary key**, which is what relationship detection needs on the "one" side.
-
-Create relationships with Power BI Desktop's built-in detection, which works at the model layer regardless of connector:
-
-- **On load:** *File > Options and settings > Options > Data Load* → enable **"Autodetect new relationships after data is loaded."**
-- **On demand:** *Modeling > Manage relationships > Autodetect*, or draw one manually in **Model view** by dragging the foreign-key column onto the referenced primary-key column.
-
-Autodetect matches on column name plus cardinality, so identically-named keys with a primary key on the referenced side (e.g. `emp.dept_id` → `dept.dept_id`) are found reliably.
-
-## Development
-
-### Building locally
+On Windows with PowerShell 7, .NET 10, Python 3.14 and GitHub CLI:
 
 ```powershell
-# Create .mez by zipping connector files
-$staging = New-Item -ItemType Directory -Path "staging" -Force
-Copy-Item "GizmoSQL.pq","GizmoSQL.query.pq","Diagnostics.pqm","SqlGenerator.pqm","SqlGeneratorCommon.pqm","resources.resx" $staging
-Copy-Item "icons\*.png" $staging
-Compress-Archive -Path "staging\*" -DestinationPath "GizmoSQL.zip"
-Rename-Item "GizmoSQL.zip" "GizmoSQL.mez" -Force
+./scripts/Install-Dependencies.ps1 Sdk
+# Locally set PQTEST and MAKEPQX to the executable paths printed above.
+./scripts/Build-Connector.ps1
+./scripts/Install-Dependencies.ps1 Driver
+./scripts/Install-Dependencies.ps1 Server
+# Set HARDCHARGER_SERVER to the extracted hardcharger-server.exe.
+python -m pip install adbc-driver-manager==1.12.0 pyarrow==23.0.1
+./scripts/Test-Connector.ps1
 ```
 
-### Testing with Docker
+CI runs the full inherited nine-query GizmoSQL suite and additional correctness/regression queries against a real released Hardcharger server and native ADBC DLL. It fails on missing/zero results and any failed query, and saves JSON and server logs as artifacts. Native-driver tests cover catalog discovery, the inherited DuckDB SQL dialect script, bearer auth, rejected credentials and TLS downgrade prevention. The retained `tests/legacy-odbc-sqltables.c` is an archived ODBC-era diagnostic, superseded by the ADBC catalog tests.
 
-```bash
-# Start a GizmoSQL instance
-docker run -p 31337:31337 \
-  -e GIZMOSQL_USERNAME=gizmosql_user \
-  -e GIZMOSQL_PASSWORD=gizmosql_password \
-  -e TLS_ENABLED=0 \
-  gizmodata/gizmosql:latest
-```
+For a development build, copy `Hardcharger.mez` to `[Documents]\Power BI Desktop\Custom Connectors` and allow unsigned connectors in Desktop's security options. The native driver must be on PATH. For signed manual installation, copy `Hardcharger.pqx` and have an administrator configure the [trusted certificate policy](https://learn.microsoft.com/en-us/power-bi/connect-data/desktop-trusted-third-party-connectors); the MSI performs these steps.
 
-Then connect in Power BI with server `localhost`, port `31337`, username `gizmosql_user`, password `gizmosql_password`.
+Set `EnableTraceOutput = true` in `Hardcharger.pq` for local diagnostics. Leave it disabled in release builds. Desktop Import/DirectQuery visuals, credential dialogs, interactive IdP sign-in and model relationships also need Desktop acceptance testing; headless PQTest validates M evaluation and folding queries, not the full Desktop UI.
 
-### Debug logging
+## Release and signing
 
-When a query fails, turn on the connector's trace output and Power BI Desktop's mashup tracing:
+Update the connector version and changelog, push main, then tag `vX.Y.Z`. CI tests the tagged source before signing, verifies the PQX OPC signature and MSI Authenticode signature, exercises installation/repair/uninstallation, and publishes `.pqx`, `.mez`, `.msi`, checksums and build provenance. All download versions/digests are recorded in [dependencies.json](dependencies.json).
 
-**1. Enable the connector's trace output** by setting `EnableTraceOutput = true` near the top of `GizmoSQL.pq` and rebuilding the `.mez` (development builds only).
+The `production` GitHub environment contains `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_KEY_VAULT_URI` and `AZURE_CERT_NAME`. Its Azure federated credential must match this repository's actual OIDC subject (new repositories use immutable owner/repository IDs). The EV private key stays in Azure Key Vault. See [signing setup](docs/signing.md).
 
-**2. Enable Power BI Desktop's mashup tracing**: `File` → `Options and settings` → `Options` → `Diagnostics` → check **Enable tracing**, then restart Power BI Desktop.
+## License and attribution
 
-**3. Reproduce the failing report.** Trace files land in:
+Apache-2.0. Derived from [GizmoSQL Power BI Connector](https://github.com/gizmodata/gizmosql-powerbi-connector), preserving its Git history and nine regression queries. SQL generator: Curt Hagenlocher's quack-net (Apache-2.0), with text predicate contributions from spiceai/powerbi-connector (MIT). Native driver licenses and third-party notices ship in the MSI.
 
-```
-%LOCALAPPDATA%\Microsoft\Power BI Desktop\Traces\
-```
-
-**4. Filter for connector entries**:
-
-```powershell
-Select-String -Path "$env:LOCALAPPDATA\Microsoft\Power BI Desktop\Traces\*.log" -Pattern "GizmoSQL/" |
-    Select-Object -ExpandProperty Line
-```
-
-What you'll see: `GizmoSQL/Connection` (server, port, default catalog — once per connection) and `GizmoSQL/OAuth/StartLogin` (OAuth base URL when the browser flow starts). `Diagnostics.pqm` also retains an `IsEnabled` marker-file helper (`C:\Users\Public\gizmosql_pbi_debug.flag`) and a `MaskCredentials` redactor from the fold-bug investigation, available for wiring up runtime-toggled instrumentation without a rebuild.
-
-**Tip — see the folded SQL up to the breakpoint:** in **Power Query Editor**, right-click any step → **View Native Query**. Power BI shows the SQL it has folded so far. If the option is grayed out at a particular step (e.g. the join), that step is what broke folding.
-
-To capture queries that **do** reach the server, run the GizmoSQL server with `--print-queries`:
-
-```bash
-gizmosql_server --username joe --password joe --print-queries --auth-log-level WARN --session-log-level WARN
-```
-
-A fold failure on the connector side means **no SQL reaches the server at all** — the connector log is where to look in that case.
-
-## Architecture
-
-```
-Power BI Desktop
-    └── GizmoSQL.pqx (this connector)
-        └── libadbc_driver_flightsql.dll (Apache Flight SQL ADBC driver)
-            └── gRPC / Arrow Flight SQL
-                └── GizmoSQL Server (DuckDB-based)
-```
-
-The connector is a Power Query M language section document built on the newer ADBC extensibility surface: it opens the driver with `Adbc.Connection()` and wires query folding through `SqlView.Generator()`, whose unique-identifier argument gives every table from one connection the same data-source identity — the prerequisite for folding cross-table joins in DirectQuery (see [#2](https://github.com/gizmodata/gizmosql-powerbi-connector/issues/2)). The Navigator tree is built from `information_schema` / `pragma_table_info` queries with foldable navigation steps. The SQL generator (`SqlGenerator.pqm`, vendored from [CurtHagenlocher/quack-net](https://github.com/CurtHagenlocher/quack-net), Apache-2.0, with `Text.*` predicate folds carried over from [spiceai/powerbi-connector](https://github.com/spiceai/powerbi-connector), MIT) targets [GizmoSQL](https://gizmodata.com/gizmosql)'s DuckDB dialect.
-
-## License
-
-Apache-2.0
+<p align="center"><a href="https://gizmodata.com"><img src="docs/assets/gizmodata-logo.png" alt="GizmoData™" width="56"></a><br><sub>Built by GizmoData™. Hardcharger™ and GizmoData™ are trademarks of GizmoData LLC.</sub></p>

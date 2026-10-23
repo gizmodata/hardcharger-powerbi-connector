@@ -1,10 +1,10 @@
 let
     // Marker file that toggles debug tracing without rebuilding the .mez/.pqx.
-    // Create with PowerShell:  New-Item -Path "C:\Users\Public\gizmosql_pbi_debug.flag" -ItemType File -Force
-    // Remove with PowerShell:  Remove-Item -Path "C:\Users\Public\gizmosql_pbi_debug.flag"
+    // Create with PowerShell:  New-Item -Path "C:\Users\Public\hardcharger_pbi_debug.flag" -ItemType File -Force
+    // Remove with PowerShell:  Remove-Item -Path "C:\Users\Public\hardcharger_pbi_debug.flag"
     // Power Query M custom connectors cannot read OS environment variables (sandbox), so we use a
-    // marker file at a writable, non-user-specific path to mimic GIZMOSQL_DEBUG=1 semantics.
-    Diagnostics.DebugFlagPath = "C:\Users\Public\gizmosql_pbi_debug.flag",
+    // marker file at a writable, non-user-specific path to mimic HARDCHARGER_DEBUG=1 semantics.
+    Diagnostics.DebugFlagPath = "C:\Users\Public\hardcharger_pbi_debug.flag",
     Diagnostics.IsEnabled = () as logical =>
         try (let _ = File.Contents(Diagnostics.DebugFlagPath) in true) otherwise false,
 

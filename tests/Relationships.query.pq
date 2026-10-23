@@ -9,9 +9,9 @@
 // itself must be verified manually in Power BI Desktop's Model view. This test
 // guards the layer beneath that: both tables navigate, carry the expected data,
 // and declare their primary keys. Extend the marked section once the connector
-// emits foreign-key metadata (see GizmoSQL.pq GetTableType / GetPrimaryKeys).
+// emits foreign-key metadata (see Hardcharger.pq GetTableType / GetPrimaryKeys).
 let
-    Source = GizmoSQL.Contents("localhost", 31337, false, false),
+    Source = Hardcharger.Contents("localhost", 31337, false, false),
     Database = Source{[Name = "memory"]}[Data],
     Schema = Database{[Name = "main"]}[Data],
 
@@ -40,11 +40,6 @@ let
         "emp declares primary key on emp_id",
         List.AnyTrue(List.Transform(empKeys, each [Primary] = true and [Columns] = {"emp_id"}))
     ),
-
-    // --- TODO(relationships): once the connector emits the emp.dept_id ->
-    // dept.dept_id foreign key (e.g. via Table.NestedJoin nav properties),
-    // assert the relationship metadata here. PQTest still can't confirm it lands
-    // in the model, but it can confirm the connector emits it. ---
 
     allChecks = {checkDeptRows, checkEmpRows, checkEmpCols, checkDeptPk, checkEmpPk},
     Result = Table.FromRecords({[
