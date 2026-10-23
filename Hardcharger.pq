@@ -80,9 +80,10 @@ BuildUri = (server as text, port as number, useEncryption as nullable logical) a
         "hardcharger://" & authority & (if useEncryption = false then "?tls=false" else "");
 
 // Standard Power Query credential storage; tokens use Warp SQL's token option.
-GetCredentialProperties = () as record =>
+GetCredentialProperties = () as record => MapCredentialProperties(Extension.CurrentCredential());
+
+MapCredentialProperties = (credential as record) as record =>
     let
-        credential = Extension.CurrentCredential(),
         kind = credential[AuthenticationKind]?
     in
         if kind = "UsernamePassword" then
@@ -430,7 +431,7 @@ StartLogin = (resourceUrl, state, display) =>
     let
         base = OAuthBaseUrl(resourceUrl),
         done = base & "/?powerbi_signin_complete=1",
-        flow = OAuthPost(base & "/warp/v1/auth/oauth/flows", [return_to = done])
+        flow = OAuthPost(base & "/warp/v1/auth/oauth/flows", [return_to = "/?powerbi_signin_complete=1"])
     in [
         LoginUri = flow[authorize_url], CallbackUri = done,
         WindowHeight = 800, WindowWidth = 1024,

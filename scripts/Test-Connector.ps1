@@ -19,7 +19,7 @@ try {
     } | ConvertTo-Json
     $cred | & $env:PQTEST set-credential -e Hardcharger.mez -q tests/Navigation.query.pq
     if ($LASTEXITCODE -ne 0) { throw 'PQTest set-credential failed' }
-    $output = & $env:PQTEST run-test -e Hardcharger.mez -q tests -p
+    $output = & $env:PQTEST run-test -e Hardcharger.mez -q tests -p -hm tests/oauth-http-mock.txt
     $code = $LASTEXITCODE
     $output | Set-Content test-results/pqtest.json
     Write-Host ($output -join "`n")
@@ -29,6 +29,17 @@ try {
     if ($results.Count -ne $expected -or $expected -lt 9) { throw "Expected $expected tests; got $($results.Count)" }
     $failed = @($results | Where-Object Status -ne 'Passed')
     if ($failed.Count -gt 0) { throw "$($failed.Count) Power Query tests failed" }
+    # DirectQuery requires folding, not merely a correct client-side result.
+    foreach ($query in @('Aggregation','ColumnSelection','Filtering','Sorting','TopN','Join','TextFolding')) {
+        $foldOutput = & $env:PQTEST run-test -e Hardcharger.mez -q "tests/$query.query.pq" -p --failOnFoldingFailure
+        $foldCode = $LASTEXITCODE
+        $foldOutput | Set-Content "test-results/folding-$query.json"
+        $foldResults = @($foldOutput | ConvertFrom-Json)
+        if ($foldCode -ne 0 -or $foldResults.Count -ne 1 -or $foldResults[0].Status -ne 'Passed') {
+            Write-Host ($foldOutput -join "`n")
+            throw "DirectQuery folding failed: $query"
+        }
+    }
     # Separate end-to-end checks use the same released native ADBC DLL.
     python tests/test_driver.py
     if ($LASTEXITCODE -ne 0) { throw 'Native driver tests failed' }

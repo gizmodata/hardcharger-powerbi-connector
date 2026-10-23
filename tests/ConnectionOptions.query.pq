@@ -2,7 +2,12 @@
 let
     BuildUri = #sections[Hardcharger][BuildUri],
     OAuthBase = #sections[Hardcharger][OAuthBaseUrl],
+    MapCredential = #sections[Hardcharger][MapCredentialProperties],
     Checks = {
+        MapCredential([AuthenticationKind="Key", Key="test-token"])[#"adbc.warp.auth.access_token"] = "test-token",
+        MapCredential([AuthenticationKind="OAuth", access_token="test-oauth"])[#"adbc.warp.auth.access_token"] = "test-oauth",
+        MapCredential([AuthenticationKind="UsernamePassword", Username="test-user", Password="test-password"])[username] = "test-user",
+        (try MapCredential([AuthenticationKind="Anonymous"]))[HasError],
         BuildUri(" DB.EXAMPLE.COM ", 31337, true) = "hardcharger://db.example.com:31337",
         BuildUri("localhost", 31337, false) = "hardcharger://localhost:31337?tls=false",
         (try BuildUri("host/path", 31337, true))[HasError],

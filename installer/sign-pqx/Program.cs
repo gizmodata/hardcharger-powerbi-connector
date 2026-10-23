@@ -37,7 +37,7 @@ var credential = new DefaultAzureCredential();
 Console.Write("Fetching certificate... ");
 var certClient = new CertificateClient(new Uri(vaultUrl), credential);
 KeyVaultCertificateWithPolicy kvCert = certClient.GetCertificate(certName);
-var publicCert = new X509Certificate2(kvCert.Cer);
+var publicCert = X509CertificateLoader.LoadCertificate(kvCert.Cer);
 Console.WriteLine($"{publicCert.Subject}");
 Console.WriteLine($"Thumbprint:  {publicCert.Thumbprint}");
 
