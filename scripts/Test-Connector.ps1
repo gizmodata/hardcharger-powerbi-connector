@@ -9,9 +9,9 @@ try {
     $ready = $false
     for ($i=0; $i -lt 40; $i++) {
         if ($server.HasExited) { Get-Content test-results/server.*.log; throw 'Server exited before ready' }
-        try { Invoke-WebRequest http://localhost:31337/warp -TimeoutSec 2 | Out-Null; $ready=$true; break } catch { Start-Sleep 1 }
+        try { Invoke-WebRequest http://127.0.0.1:31337/warp -UseBasicParsing -NoProxy -TimeoutSec 2 | Out-Null; $ready=$true; Write-Host "Hardcharger HTTP endpoint ready"; break } catch { Write-Host "Waiting for HTTP readiness: $($_.Exception.Message)"; Start-Sleep 1 }
     }
-    if (!$ready) { throw 'Hardcharger did not become ready' }
+    if (!$ready) { Get-Content test-results/server.*.log; throw 'Hardcharger did not become ready' }
     $cred = @{
         AuthenticationKind = 'UsernamePassword'
         AuthenticationProperties = @{Username='hardcharger_user';Password=$env:HARDCHARGER_ADMIN_PASSWORD}
