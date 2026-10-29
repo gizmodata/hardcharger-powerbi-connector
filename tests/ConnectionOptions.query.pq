@@ -1,13 +1,12 @@
-// Validate endpoint and credential-scope helpers without network activity. The
-// bundled native driver reads its options under the PreRenameCompat.pqm prefix.
+// Validate endpoint and credential-scope helpers without network activity.
 let
     Helpers = Hardcharger.TestHelpers(),
     BuildUri = Helpers[BuildUri],
     OAuthBase = Helpers[OAuthBaseUrl],
     MapCredential = Helpers[MapCredentialProperties],
     Checks = {
-        MapCredential([AuthenticationKind="Key", Key="test-token"])[#"adbc.warp.auth.access_token"] = "test-token",
-        MapCredential([AuthenticationKind="OAuth", access_token="test-oauth"])[#"adbc.warp.auth.access_token"] = "test-oauth",
+        MapCredential([AuthenticationKind="Key", Key="test-token"])[#"adbc.chargewire.auth.access_token"] = "test-token",
+        MapCredential([AuthenticationKind="OAuth", access_token="test-oauth"])[#"adbc.chargewire.auth.access_token"] = "test-oauth",
         MapCredential([AuthenticationKind="UsernamePassword", Username="test-user", Password="test-password"])[username] = "test-user",
         (try MapCredential([AuthenticationKind="Anonymous"]))[HasError],
         BuildUri(" DB.EXAMPLE.COM ", 31337, true) = "hardcharger://db.example.com:31337",

@@ -40,7 +40,7 @@ Driver = Extension.LoadExpression("HardchargerAdbcConfig.pqm");
 PreRenameCompat = Extension.LoadExpression("PreRenameCompat.pqm");
 
 // Full key of one of the native driver's own options, e.g. "auth.access_token".
-DriverOption = (name as text) as text => PreRenameCompat[DriverOptionPrefix] & name;
+DriverOption = (name as text) as text => "adbc.chargewire." & name;
 
 // High-level Get Data dialog parameters. Credentials use the standard auth UI.
 Hardcharger.ContentsType = type function (

@@ -1,11 +1,9 @@
 // PreRenameCompat.pqm — names from before the protocol was renamed to Chargewire.
 // Hardcharger servers released before the rename mount the protocol under
 // another base path and discovery name; ProtocolRoot in Hardcharger.pq uses
-// them when a server has no Chargewire discovery document. The bundled native
-// driver (dependencies.json) also reads its own options only under the earlier
-// key prefix. This file is the only place that knows the old names.
+// them when a server has no Chargewire discovery document. This file is the
+// only place that knows the old names.
 [
     Root = "/warp",
-    Protocol = "warp-sql",
-    DriverOptionPrefix = "adbc.warp."
+    Protocol = "warp-sql"
 ]

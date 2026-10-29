@@ -19,10 +19,8 @@ BASE_URL = f'http://127.0.0.1:{PORT}'
 URI = f'hardcharger://127.0.0.1:{PORT}?tls=false'
 
 # Mirrors PreRenameCompat.pqm: a server released before the protocol rename
-# serves the protocol under this root, and the bundled native driver reads its
-# options under this prefix.
+# serves the protocol under this root.
 PRE_RENAME_ROOT, PRE_RENAME_PROTOCOL = '/warp', 'warp-sql'
-DRIVER_OPTION_PREFIX = 'adbc.warp.'
 
 def connect(**options):
     return dbapi.connect(driver=DRIVER, entrypoint='AdbcDriverHardchargerInit',
@@ -77,7 +75,7 @@ class NativeDriverTests(unittest.TestCase):
                                          headers={'Content-Type':'application/json'})
         with urllib.request.urlopen(request) as response:
             token = json.load(response)['access_token']
-        with connect(**{DRIVER_OPTION_PREFIX + 'auth.access_token':token}) as cx, cx.cursor() as cur:
+        with connect(**{'adbc.chargewire.auth.access_token':token}) as cx, cx.cursor() as cur:
             cur.execute('SELECT 42')
             self.assertEqual(cur.fetchone(), (42,))
 
