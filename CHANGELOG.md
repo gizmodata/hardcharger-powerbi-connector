@@ -2,8 +2,12 @@
 
 ## [Unreleased]
 
+## [v1.1.0] - 2026-10-29
+
 ### Changed
-- The connector now uses the Chargewire protocol: browser sign-in finds the server's Chargewire endpoint and still works with Hardcharger servers released before the rename. The Get Data port description and documentation name Chargewire. Connection settings, saved credentials and the bundled Hardcharger ADBC driver are unchanged.
+- The connector now uses the Chargewire protocol: browser sign-in finds the server's Chargewire endpoint and still works with Hardcharger servers released before the rename. The Get Data port description and documentation name Chargewire. Connection settings and saved credentials are unchanged.
+- Bundle the Hardcharger ADBC driver 2.1.0 and pass it the `adbc.chargewire.*` option keys. The driver still connects to Hardcharger servers released before the rename.
+- CI runs the full test suite against Hardcharger 2.3.0.
 
 ## [v1.0.1] - 2026-10-23
 
