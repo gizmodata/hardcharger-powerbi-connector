@@ -19,7 +19,7 @@ its text predicate folds, rather than replacing a dialect implementation solely
 because a sample changed. All nine source queries remain. Credentials come only
 from Extension.CurrentCredential; TLS is a required source parameter and part of
 credential scope. Folding identity contains target/catalog/trust choices, never
-credentials. Native options use `adbc.warp.*`, not FlightSQL keys.
+credentials. Native options use the Hardcharger ADBC driver's own keys, not FlightSQL keys.
 
 The official sample currently declares foreign-key helpers without applying them
 to leaf tables. We preserve primary-key metadata, test it, and document Desktop's

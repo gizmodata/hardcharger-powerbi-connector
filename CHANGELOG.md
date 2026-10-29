@@ -2,11 +2,14 @@
 
 ## [Unreleased]
 
+### Changed
+- The connector now uses the Chargewire protocol: browser sign-in finds the server's Chargewire endpoint and still works with Hardcharger servers released before the rename. The Get Data port description and documentation name Chargewire. Connection settings, saved credentials and the bundled Hardcharger ADBC driver are unchanged.
+
 ## [v1.0.1] - 2026-10-23
 
 ### Added
 - Hardcharger Power BI connector with Import, DirectQuery, hierarchical catalog/schema/table navigation and DuckDB query folding.
-- Native Hardcharger ADBC 2.0.2 transport over Warp SQL HTTP(S), username/password, bearer tokens and Power Query browser sign-in.
+- Native Hardcharger ADBC 2.0.2 transport over Chargewire HTTP(S), username/password, bearer tokens and Power Query browser sign-in.
 - Hardcharger branding throughout Get Data, documentation and the Windows MSI, using official Hardcharger artwork.
 - Azure Key Vault signing and verification for the connector and MSI, with GitHub OIDC and non-exportable signing keys.
 - All nine inherited Power Query regression queries, plus value assertions, joins, extended types, views, quoted identifiers and catalog isolation; native ADBC authentication, TLS and SQL dialect tests; installer install/repair/removal checks.

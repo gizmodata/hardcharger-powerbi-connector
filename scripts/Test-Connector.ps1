@@ -10,7 +10,7 @@ try {
     $ready = $false
     for ($i=0; $i -lt 40; $i++) {
         if ($server.HasExited) { Get-Content test-results/server.*.log; throw 'Server exited before ready' }
-        try { Invoke-WebRequest http://127.0.0.1:31337/warp -UseBasicParsing -NoProxy -TimeoutSec 2 | Out-Null; $ready=$true; Write-Host "Hardcharger HTTP endpoint ready"; break } catch { Write-Host "Waiting for HTTP readiness: $($_.Exception.Message)"; Start-Sleep 1 }
+        try { $probe = [Net.Sockets.TcpClient]::new(); $probe.Connect('127.0.0.1', 31337); $probe.Dispose(); $ready=$true; Write-Host "Hardcharger HTTP endpoint ready"; break } catch { Write-Host "Waiting for HTTP readiness: $($_.Exception.Message)"; Start-Sleep 1 }
     }
     if (!$ready) { Get-Content test-results/server.*.log; throw 'Hardcharger did not become ready' }
     $cred = @{
@@ -27,10 +27,13 @@ try {
     if ($code -ne 0) { throw "PQTest exited $code" }
     $results = @($output | ConvertFrom-Json)
     # The test hook is invoked outside Power BI's OAuth-handler context, so
-    # explicitly grant anonymous Web credentials to the loopback OAuth fixture.
+    # explicitly grant anonymous Web credentials to the loopback OAuth fixtures
+    # (a current server and one released before the protocol rename).
     $anonymous = @{AuthenticationKind='Anonymous'; AuthenticationProperties=@{}; PrivacySetting='None'; Permissions=@()} | ConvertTo-Json
-    $anonymous | & $env:PQTEST set-credential -e Hardcharger.Test.mez -dsk Web -dsp 'http://127.0.0.1:31338'
-    if ($LASTEXITCODE -ne 0) { throw 'OAuth fixture credential setup failed' }
+    foreach ($fixture in @('http://127.0.0.1:31338', 'http://127.0.0.1:31339')) {
+        $anonymous | & $env:PQTEST set-credential -e Hardcharger.Test.mez -dsk Web -dsp $fixture
+        if ($LASTEXITCODE -ne 0) { throw "OAuth fixture credential setup failed for $fixture" }
+    }
     foreach ($name in @('ConnectionOptions','OAuth')) {
         $unit = & $env:PQTEST run-test -e Hardcharger.Test.mez -q "tests/$name.query.pq" -p
         $unitCode = $LASTEXITCODE

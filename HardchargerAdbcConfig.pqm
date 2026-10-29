@@ -1,4 +1,4 @@
-// HardchargerAdbcConfig.pqm — ADBC driver configuration for Hardcharger via Warp SQL.
+// HardchargerAdbcConfig.pqm — ADBC driver configuration for Hardcharger via Chargewire.
 let
     TypeInfo = Extension.LoadExpression("TypeInfo.pqm"),
     HardchargerAdbcConfig = [

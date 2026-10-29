@@ -37,6 +37,10 @@ SqlView.Generator =
             error Error.Record("Expression.Error", "SqlView.Generator is not available in this Power BI Desktop version. Update to a recent build.");
 
 Driver = Extension.LoadExpression("HardchargerAdbcConfig.pqm");
+PreRenameCompat = Extension.LoadExpression("PreRenameCompat.pqm");
+
+// Full key of one of the native driver's own options, e.g. "auth.access_token".
+DriverOption = (name as text) as text => PreRenameCompat[DriverOptionPrefix] & name;
 
 // High-level Get Data dialog parameters. Credentials use the standard auth UI.
 Hardcharger.ContentsType = type function (
@@ -47,7 +51,7 @@ Hardcharger.ContentsType = type function (
     ]),
     port as (type number meta [
         Documentation.FieldCaption = "Port",
-        Documentation.FieldDescription = "Warp SQL HTTP(S) port of the Hardcharger server",
+        Documentation.FieldDescription = "Chargewire HTTP(S) port of the Hardcharger server",
         Documentation.SampleValues = {31337}
     ]),
     useEncryption as (type logical meta [
@@ -79,7 +83,7 @@ BuildUri = (server as text, port as number, useEncryption as nullable logical) a
     in
         "hardcharger://" & authority & (if useEncryption = false then "?tls=false" else "");
 
-// Standard Power Query credential storage; tokens use Warp SQL's token option.
+// Standard Power Query credential storage; tokens use the driver's token option.
 GetCredentialProperties = () as record => MapCredentialProperties(Extension.CurrentCredential());
 
 MapCredentialProperties = (credential as record) as record =>
@@ -89,9 +93,9 @@ MapCredentialProperties = (credential as record) as record =>
         if kind = "UsernamePassword" then
             [username = credential[Username], password = credential[Password]]
         else if kind = "Key" then
-            [#"adbc.warp.auth.access_token" = credential[Key]]
+            Record.FromList({credential[Key]}, {DriverOption("auth.access_token")})
         else if kind = "OAuth" then
-            [#"adbc.warp.auth.access_token" = credential[access_token]]
+            Record.FromList({credential[access_token]}, {DriverOption("auth.access_token")})
         else error Error.Record("DataSource.Error", "Unsupported authentication kind.");
 
 [DataSource.Kind = "Hardcharger", Publish = "Hardcharger.Publish"]
@@ -113,7 +117,7 @@ HardchargerContext = (server as text, port as number, useEncryption as nullable 
         Uri = BuildUri(server, port, useEncryption),
         TlsProperties =
             if disableCertificateVerification = true then
-                [ #"adbc.warp.tls.skip_verify" = "true" ]
+                Record.FromList({"true"}, {DriverOption("tls.skip_verify")})
             else
                 [],
         DatabaseProperties = [ uri = Uri ] & TlsProperties & GetCredentialProperties(),
@@ -411,9 +415,31 @@ GetPrimaryKeys = (exec, catalog, schema, table) =>
     in
         if List.IsEmpty(primaryKeyColumns) then {} else {[Columns = primaryKeyColumns, Primary = true]};
 
-// Warp SQL browser sign-in (v1 §4.3). The browser returns to a same-origin
+// Chargewire browser sign-in (v1 §4.3). The browser returns to a same-origin
 // completion URL after the server processes the IdP callback. Poll secrets travel
 // only in POST bodies, and the resulting server token goes to the native driver.
+
+// Base path of the protocol on the server at base: "/chargewire", or the earlier
+// root on a Hardcharger server released before the rename, whose discovery at
+// /chargewire answers 404.
+ProtocolRoot = (base as text) as text =>
+    let
+        DiscoveredProtocol = (root as text) as nullable text =>
+            let
+                response = Web.Contents(base & root, [
+                    Headers = [Accept = "application/json"],
+                    ManualStatusHandling = {404},
+                    IsRetry = true
+                ]),
+                status = Value.Metadata(response)[Response.Status]
+            in
+                if status = 404 then null else (try Json.Document(response)[protocol]? otherwise null),
+        current = DiscoveredProtocol("/chargewire")
+    in
+        if current = "chargewire" then "/chargewire"
+        else if DiscoveredProtocol(PreRenameCompat[Root]) = PreRenameCompat[Protocol] then PreRenameCompat[Root]
+        else error Error.Record("DataSource.Error", "The server at " & base & " is not a Hardcharger server.");
+
 OAuthBaseUrl = (dataSourcePath as text) as text =>
     let p = Json.Document(dataSourcePath)
     in (if p[useEncryption] = false then "http://" else "https://")
@@ -430,11 +456,12 @@ StartLogin = (resourceUrl, state, display) =>
     let
         base = OAuthBaseUrl(resourceUrl),
         done = base & "/?powerbi_signin_complete=1",
-        flow = OAuthPost(base & "/warp/v1/auth/oauth/flows", [return_to = "/?powerbi_signin_complete=1"])
+        root = ProtocolRoot(base),
+        flow = OAuthPost(base & root & "/v1/auth/oauth/flows", [return_to = "/?powerbi_signin_complete=1"])
     in [
         LoginUri = flow[authorize_url], CallbackUri = done,
         WindowHeight = 800, WindowWidth = 1024,
-        Context = [BaseUrl = base, FlowId = flow[flow_id], PollSecret = flow[poll_secret],
+        Context = [BaseUrl = base, Root = root, FlowId = flow[flow_id], PollSecret = flow[poll_secret],
             Interval = List.Max({1, flow[poll_interval_s]? ?? 1})]
     ];
 
@@ -442,7 +469,7 @@ FinishLogin = (context, callbackUri, state) => PollForToken(context, 300);
 
 PollForToken = (context as record, secondsLeft as number) =>
     let
-        response = OAuthPost(context[BaseUrl] & "/warp/v1/auth/oauth/flows/" & Uri.EscapeDataString(context[FlowId]),
+        response = OAuthPost(context[BaseUrl] & context[Root] & "/v1/auth/oauth/flows/" & Uri.EscapeDataString(context[FlowId]),
             [poll_secret = context[PollSecret]]),
         status = response[state]?
     in

@@ -1,4 +1,5 @@
-// Validate endpoint and credential-scope helpers without network activity.
+// Validate endpoint and credential-scope helpers without network activity. The
+// bundled native driver reads its options under the PreRenameCompat.pqm prefix.
 let
     Helpers = Hardcharger.TestHelpers(),
     BuildUri = Helpers[BuildUri],

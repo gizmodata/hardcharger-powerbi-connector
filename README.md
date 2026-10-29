@@ -9,7 +9,7 @@
 
 # Hardcharger Power BI Connector
 
-Connect Power BI Desktop to **Hardcharger™** using the native [Hardcharger ADBC driver](https://github.com/gizmodata/hardcharger-adbc) and [Warp SQL](https://github.com/gizmodata/warp-sql). Arrow columnar results, Import, DirectQuery, DuckDB query folding and catalog/schema/table navigation.
+Connect Power BI Desktop to **Hardcharger™** using the native [Hardcharger ADBC driver](https://github.com/gizmodata/hardcharger-adbc) and [Chargewire](https://github.com/gizmodata/chargewire). Arrow columnar results, Import, DirectQuery, DuckDB query folding and catalog/schema/table navigation.
 
 [![CI](https://github.com/gizmodata/hardcharger-powerbi-connector/actions/workflows/ci.yml/badge.svg)](https://github.com/gizmodata/hardcharger-powerbi-connector/actions/workflows/ci.yml)
 
@@ -29,7 +29,7 @@ Requires the **standalone Windows x64 Power BI Desktop installer** (the Microsof
 
 Enter the hostname, port (normally **31337**) and TLS choice. TLS should be enabled for production; disable it for a local plain HTTP development server. Optional settings allow certificate-verification bypass for development and a default catalog. Use a hostname rather than a URI; raw driver option names and credentials do not belong in query parameters.
 
-Choose **Username/Password**, **Bearer token**, or **OAuth (Browser)**. The bearer token must be a Warp SQL access token issued by Hardcharger, rather than an identity provider's raw ID token. Browser sign-in uses Hardcharger's Warp SQL OAuth flow on the same HTTP(S) port; configure the identity provider on the server. Its certificate must be trusted by Windows because Power Query's HTTP client cannot bypass TLS verification. Browser tokens cannot be refreshed noninteractively; use username/password for unattended gateway refresh. Gateway administrators must install the DLL under the gateway mashup host's `ADBC Drivers\Hardcharger` directory, place the connector in the configured custom connector folder, and enable custom connectors. Gateway refresh needs separate acceptance testing.
+Choose **Username/Password**, **Bearer token**, or **OAuth (Browser)**. The bearer token must be a Chargewire access token issued by Hardcharger, rather than an identity provider's raw ID token. Browser sign-in uses Hardcharger's Chargewire OAuth flow on the same HTTP(S) port; configure the identity provider on the server. Its certificate must be trusted by Windows because Power Query's HTTP client cannot bypass TLS verification. Browser tokens cannot be refreshed noninteractively; use username/password for unattended gateway refresh. Gateway administrators must install the DLL under the gateway mashup host's `ADBC Drivers\Hardcharger` directory, place the connector in the configured custom connector folder, and enable custom connectors. Gateway refresh needs separate acceptance testing.
 
 ```powerquery
 // TLS enabled
@@ -47,7 +47,7 @@ Power BI Desktop / Power Query
   Hardcharger.pqx
     Adbc.Connection + SqlView.Generator
       libadbc_driver_hardcharger.dll (AdbcDriverHardchargerInit)
-        Warp SQL / HTTP(S) / Arrow IPC
+        Chargewire / HTTP(S) / Arrow IPC
           Hardcharger
 ```
 
