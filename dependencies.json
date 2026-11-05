@@ -5,10 +5,10 @@
     "sha256": "861e4e1dbc60f58b7a8cda5f5364baa9d218ac367f09ad53d4cefa4605151656"
   },
   "hardchargerAdbc": {
-    "version": "2.3.0",
+    "version": "2.4.0",
     "repo": "gizmodata/hardcharger-adbc",
-    "asset": "libadbc_driver_hardcharger-v2.3.0-windows_amd64.tar.gz",
-    "sha256": "d7ac4b7c4aadae9e231c13244dadcacbe0588663eca70b41f80b831ee55d11e8"
+    "asset": "libadbc_driver_hardcharger-v2.4.0-windows_amd64.tar.gz",
+    "sha256": "bd55942982c039bd2395fbca60d6e75ce83dcdd9bb7445f6cb0f64744b5c7632"
   },
   "hardchargerServer": {
     "version": "2.7.0",

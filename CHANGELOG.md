@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+## [v1.2.1] - 2026-11-05
+
+### Fixed
+- Bundle the Hardcharger ADBC driver 2.4.0. After it lost a session (a server restart or an idle eviction), driver 2.3.0 could run the next statement again on its own in a new session: inside an SQL transaction (Hardcharger servers through 2.7.0 can answer `BEGIN` before their session document shows the transaction), or without the old session's `USE` and `SET`. 2.4.0 refuses to run it again in both cases.
+
 ## [v1.2.0] - 2026-11-05
 
 ### Changed
