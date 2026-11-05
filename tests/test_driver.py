@@ -80,11 +80,12 @@ class NativeDriverTests(unittest.TestCase):
             self.assertEqual(cur.fetchone(), (42,))
 
     def test_invalid_password_rejected(self):
-        with self.assertRaises(Exception):
+        # Match the server's refusal, so an unreachable server cannot pass this.
+        with self.assertRaisesRegex(expected_exception=Exception, expected_regex='invalid_credentials'):
             connect(username=USERNAME, password='incorrect')
 
     def test_tls_never_silently_downgrades(self):
-        with self.assertRaises(Exception):
+        with self.assertRaisesRegex(expected_exception=Exception, expected_regex='speaks plain HTTP, not TLS'):
             dbapi.connect(driver=DRIVER, entrypoint='AdbcDriverHardchargerInit',
                           db_kwargs={'uri':f'hardcharger://127.0.0.1:{PORT}',
                                      'username':USERNAME, 'password':os.environ['HARDCHARGER_ADMIN_PASSWORD']})

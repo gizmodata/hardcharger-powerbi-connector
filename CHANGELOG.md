@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [v1.2.0] - 2026-11-05
+
+### Changed
+- Bundle the Hardcharger ADBC driver 2.3.0. Connecting to a stopped GizmoData Cloud cluster that is starting again (the server answers `server_resuming`) now waits for it, up to the driver's default of 10 minutes, instead of failing at once.
+- CI runs the full test suite against Hardcharger 2.7.0, and the local `docker-compose.yml` fixture uses the same server version.
+
 ## [v1.1.0] - 2026-10-29
 
 ### Changed
