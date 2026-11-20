@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+## [v1.3.0] - 2026-11-20
+
+### Changed
+- Bundle the Hardcharger ADBC driver 2.7.0 and pass it the option names of the [ADBC driver style guide](https://adbc-drivers.org/building-drivers/style-guide.html): `hardcharger.auth.access_token` and `hardcharger.tls.skip_verify` (were `adbc.chargewire.*`, which 2.7.0 still reads but reports as deprecated). Connection settings and saved credentials are unchanged.
+
 ## [v1.2.1] - 2026-11-05
 
 ### Fixed

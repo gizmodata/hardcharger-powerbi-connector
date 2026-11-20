@@ -75,7 +75,7 @@ class NativeDriverTests(unittest.TestCase):
                                          headers={'Content-Type':'application/json'})
         with urllib.request.urlopen(request) as response:
             token = json.load(response)['access_token']
-        with connect(**{'adbc.chargewire.auth.access_token':token}) as cx, cx.cursor() as cur:
+        with connect(**{'hardcharger.auth.access_token':token}) as cx, cx.cursor() as cur:
             cur.execute('SELECT 42')
             self.assertEqual(cur.fetchone(), (42,))
 
