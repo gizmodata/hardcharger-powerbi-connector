@@ -39,8 +39,9 @@ SqlView.Generator =
 Driver = Extension.LoadExpression("HardchargerAdbcConfig.pqm");
 PreRenameCompat = Extension.LoadExpression("PreRenameCompat.pqm");
 
-// Full key of one of the native driver's own options, e.g. "auth.access_token".
-DriverOption = (name as text) as text => "adbc.chargewire." & name;
+// Full key of one of the native driver's own options, e.g. "auth.access_token":
+// hardcharger.*, the ADBC driver style guide's vendor prefix (driver 2.7.0 on).
+DriverOption = (name as text) as text => "hardcharger." & name;
 
 // High-level Get Data dialog parameters. Credentials use the standard auth UI.
 Hardcharger.ContentsType = type function (

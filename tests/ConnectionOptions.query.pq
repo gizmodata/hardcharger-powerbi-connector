@@ -5,8 +5,8 @@ let
     OAuthBase = Helpers[OAuthBaseUrl],
     MapCredential = Helpers[MapCredentialProperties],
     Checks = {
-        MapCredential([AuthenticationKind="Key", Key="test-token"])[#"adbc.chargewire.auth.access_token"] = "test-token",
-        MapCredential([AuthenticationKind="OAuth", access_token="test-oauth"])[#"adbc.chargewire.auth.access_token"] = "test-oauth",
+        MapCredential([AuthenticationKind="Key", Key="test-token"])[#"hardcharger.auth.access_token"] = "test-token",
+        MapCredential([AuthenticationKind="OAuth", access_token="test-oauth"])[#"hardcharger.auth.access_token"] = "test-oauth",
         MapCredential([AuthenticationKind="UsernamePassword", Username="test-user", Password="test-password"])[username] = "test-user",
         (try MapCredential([AuthenticationKind="Anonymous"]))[HasError],
         BuildUri(" DB.EXAMPLE.COM ", 31337, true) = "hardcharger://db.example.com:31337",
